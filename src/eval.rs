@@ -1,9 +1,9 @@
-use crate::parser::{AstNode, BinaryOperator, UnaryOperator};
-use crate::object::Object;
-use std::collections::HashMap;
-use crate::parser::Operator;
 use crate::error::SantaError;
-use crate::function::{ParameterList, ArgumentList, Function};
+use crate::function::{ArgumentList, Function, ParameterList};
+use crate::object::Object;
+use crate::parser::Operator;
+use crate::parser::{AstNode, BinaryOperator, UnaryOperator};
+use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct Scope<'s> {
@@ -12,34 +12,32 @@ pub struct Scope<'s> {
 }
 
 impl<'s> Scope<'s> {
-    pub fn new() -> Self{
+    pub fn new() -> Self {
         Self::with_parent(None)
     }
 
-    pub fn with_parent(parent: Option<&'s Scope<'s>>) -> Self {
+    pub fn with_parent(parent: Option<&'s mut Scope<'s>>) -> Self {
         Self {
-            parent: None,
+            parent,
             locals: HashMap::new(),
         }
     }
 
-    pub fn child(&'s mut self) -> Scope<'s>{
+    pub fn child(&'s mut self) -> Scope<'s> {
         Self::with_parent(Some(self))
     }
 
-    fn find_variable(&mut self, name: &String) -> Option<&mut Object>{
+    fn find_variable(&mut self, name: &String) -> Option<&mut Object> {
         if self.locals.contains_key(name) {
             self.locals.get_mut(name)
+        } else if let Some(ref mut parent) = self.parent {
+            parent.find_variable(name)
         } else {
-            if let Some(ref mut parent) = self.parent {
-                parent.find_variable(name)
-            } else {
-                None
-            }
+            None
         }
     }
 
-    pub fn set_variable<'set>(&'set mut self, name: String, value: Object) {
+    pub fn set_variable(&mut self, name: String, value: Object) {
         if let Some(var) = self.find_variable(&name) {
             *var = value;
         } else {
@@ -48,14 +46,12 @@ impl<'s> Scope<'s> {
     }
 
     pub fn get_variable(&self, name: &String) -> Option<Object> {
-        if let Some(i) =  self.locals.get(name) {
-            return Some(i.to_owned());
+        if let Some(i) = self.locals.get(name) {
+            Some(i.to_owned())
+        } else if let Some(parent) = &self.parent {
+            parent.get_variable(name)
         } else {
-            if let Some(parent) = &self.parent {
-                parent.get_variable(name)
-            } else {
-                None
-            }
+            None
         }
     }
 
@@ -66,30 +62,29 @@ impl<'s> Scope<'s> {
     }
 }
 
-pub fn eval_node<'o>(node: Box<AstNode>, scope: &mut Scope) -> Result<Object, SantaError>{
+pub fn eval_node(node: Box<AstNode>, scope: &mut Scope) -> Result<Object, SantaError> {
     match *node {
-        AstNode::None => return Ok(Object::None),
-        AstNode::Expression(operatortype) =>
-            match operatortype {
-                Operator::Binary {operator, rhs, lhs} => {
-                    let rhs_eval = eval_node(rhs, scope)?;
-                    let lhs_eval = eval_node(lhs, scope)?;
-                    match operator{
-                        BinaryOperator::Add => lhs_eval.add(&rhs_eval),
-                        BinaryOperator::Multiply => lhs_eval.multiply(&rhs_eval),
-                        BinaryOperator::Divide => lhs_eval.divide(&rhs_eval),
-                        BinaryOperator::Subtract => lhs_eval.subtract(&rhs_eval),
-                    }
-                },
-                Operator::Unary {operator, expr} => {
-                    let expr_eval = eval_node(expr, scope)?;
-
-                    match operator {
-                        UnaryOperator::Negate => expr_eval.negate()
-                    }
+        AstNode::None => Ok(Object::None),
+        AstNode::Expression(operatortype) => match operatortype {
+            Operator::Binary { operator, rhs, lhs } => {
+                let rhs_eval = eval_node(rhs, scope)?;
+                let lhs_eval = eval_node(lhs, scope)?;
+                match operator {
+                    BinaryOperator::Add => lhs_eval.add(&rhs_eval),
+                    BinaryOperator::Multiply => lhs_eval.multiply(&rhs_eval),
+                    BinaryOperator::Divide => lhs_eval.divide(&rhs_eval),
+                    BinaryOperator::Subtract => lhs_eval.subtract(&rhs_eval),
                 }
-            },
-        AstNode::Assignment {name, expression} => {
+            }
+            Operator::Unary { operator, expr } => {
+                let expr_eval = eval_node(expr, scope)?;
+
+                match operator {
+                    UnaryOperator::Negate => expr_eval.negate(),
+                }
+            }
+        },
+        AstNode::Assignment { name, expression } => {
             let evaluated = eval_node(expression, scope)?;
             match *name {
                 AstNode::Name(name) => {
@@ -97,23 +92,21 @@ pub fn eval_node<'o>(node: Box<AstNode>, scope: &mut Scope) -> Result<Object, Sa
                     Ok(evaluated)
                 }
                 _ => Err(SantaError::InvalidOperationError {
-                    cause: "Tried to assign to something that's not a variable name".into()
-                })
+                    cause: "Tried to assign to something that's not a variable name".into(),
+                }),
             }
         }
 
-        AstNode::Integer(integer) => {
-            Ok(Object::Integer(integer))
-        }
-        AstNode::String(string) => {
-            Ok(Object::String(string))
-        }
+        AstNode::Integer(integer) => Ok(Object::Integer(integer)),
+        AstNode::String(string) => Ok(Object::String(string)),
         AstNode::Name(string) => {
-            Ok(scope.get_variable(&string).ok_or(SantaError::InvalidOperationError {
-                cause: "Variable not defined".into()
-            })?)
+            Ok(scope
+                .get_variable(&string)
+                .ok_or(SantaError::InvalidOperationError {
+                    cause: "Variable not defined".into(),
+                })?)
         }
-        AstNode::Functioncall { value, args  } => {
+        AstNode::Functioncall { value, args } => {
             let variable = eval_node(value, scope)?;
             let mut arguments = ArgumentList::new(vec![]);
             for i in args {
@@ -122,7 +115,11 @@ pub fn eval_node<'o>(node: Box<AstNode>, scope: &mut Scope) -> Result<Object, Sa
 
             variable.call(arguments)
         }
-        AstNode::Function { name, parameterlist, code } => {
+        AstNode::Function {
+            name,
+            parameterlist,
+            code,
+        } => {
             let func = Object::Function(Function::User(parameterlist, code));
 
             // If you gave the function a name, assign it to a variable with that name.
@@ -132,7 +129,12 @@ pub fn eval_node<'o>(node: Box<AstNode>, scope: &mut Scope) -> Result<Object, Sa
 
             Ok(func)
         }
-        _ => unimplemented!()
+        AstNode::Return(expr) => {
+            Err(SantaError::ReturnException {
+                value: eval_node(expr, scope)?
+            })
+        }
+        _ => unimplemented!(),
     }
 }
 
@@ -142,15 +144,17 @@ pub fn eval(ast: Vec<Box<AstNode>>) {
     eval_with_scope(ast, &mut scope);
 }
 
-pub fn eval_with_scope<'o>(ast: Vec<Box<AstNode>>, scope: &mut Scope) -> Object {
-
+pub fn eval_with_scope(ast: Vec<Box<AstNode>>, scope: &mut Scope) -> Object {
     let mut last_answer = Object::None;
     for node in ast {
         match eval_node(node, scope) {
+            Err(SantaError::ReturnException { value }) => {
+                return value;
+            }
             Err(e) => {
                 println!("{}", e);
                 return last_answer;
-            },
+            }
             Ok(i) => {
                 last_answer = i;
             }
@@ -158,6 +162,4 @@ pub fn eval_with_scope<'o>(ast: Vec<Box<AstNode>>, scope: &mut Scope) -> Object 
     }
 
     last_answer
-
 }
-

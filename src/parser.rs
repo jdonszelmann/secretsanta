@@ -1,10 +1,8 @@
 use crate::error::SantaError;
+use crate::function::ParameterList;
 use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive;
-use crate::function::ParameterList;
-use crate::eval::{eval_node, Scope};
-use crate::object::Object;
 
 #[derive(pest_derive::Parser)]
 #[grammar = "grammar.pest"]
@@ -56,10 +54,11 @@ pub enum AstNode {
         value: Box<AstNode>,
         args: Vec<Box<AstNode>>,
     },
+    Return(Box<AstNode>),
     None,
 }
 
-impl AstNode{
+impl AstNode {
     pub fn boxed(self) -> Box<AstNode> {
         Box::new(self)
     }
@@ -70,13 +69,22 @@ fn integer_to_ast(pair: Pair<Rule>) -> Result<Box<AstNode>, SantaError> {
         pair.as_str()
             .parse()
             .map_err(|_| SantaError::ParseTreeError {
-                cause: "Couldn't parse to integer".into()
-            })?).boxed()
+                cause: "Couldn't parse to integer".into(),
+            })?,
     )
+    .boxed())
 }
 
 fn name_to_ast(pair: Pair<Rule>) -> Result<Box<AstNode>, SantaError> {
     Ok(AstNode::Name(pair.as_str().into()).boxed())
+}
+
+fn return_to_ast(pair: Pair<Rule>) -> Result<Box<AstNode>, SantaError> {
+    Ok(Box::new(AstNode::Return(expression_to_ast(
+        pair.into_inner().next().ok_or(SantaError::ParseTreeError {
+            cause: "Couldn't parse to integer".into(),
+        })?,
+    )?)))
 }
 
 fn function_to_ast(pair: Pair<Rule>) -> Result<Box<AstNode>, SantaError> {
@@ -104,13 +112,12 @@ fn function_to_ast(pair: Pair<Rule>) -> Result<Box<AstNode>, SantaError> {
         (vec![], possible_parameterlist)
     };
 
-
     let mut parameters = Vec::new();
 
-    for i in parameterlist{
+    for i in parameterlist {
         // can *only* be `name` nodes meaning that they can be
         // evaluated directly into strings.
-        if let AstNode::Name(name) = *i{
+        if let AstNode::Name(name) = *i {
             parameters.push(name);
         } else {
             return Err(SantaError::ParseTreeError {
@@ -146,9 +153,8 @@ fn atom_to_ast(pair: Pair<Rule>) -> Result<Box<AstNode>, SantaError> {
 fn parameterlist_to_ast(pair: Pair<Rule>) -> Result<Vec<Box<AstNode>>, SantaError> {
     let mut result = vec![];
 
-    let mut innerpair = pair.into_inner();
-    while let Some(arg) = innerpair.next() {
-        result.push(name_to_ast(arg)?)
+    for param in pair.into_inner() {
+        result.push(name_to_ast(param)?)
     }
 
     Ok(result)
@@ -158,8 +164,8 @@ fn argumentlist_to_ast(pair: Option<Pair<Rule>>) -> Result<Vec<Box<AstNode>>, Sa
     if let Some(pair) = pair {
         let mut result = vec![];
 
-        let mut innerpair = pair.into_inner();
-        while let Some(arg) = innerpair.next() {
+        let innerpair = pair.into_inner();
+        for arg in innerpair {
             result.push(expression_to_ast(arg)?)
         }
 
@@ -175,15 +181,12 @@ fn atomexpr_to_ast(pair: Pair<Rule>) -> Result<Box<AstNode>, SantaError> {
         cause: "Couldn't parse".into(),
     })?);
 
-
     match innerpair.next() {
         Some(i) => match i.as_rule() {
-            Rule::functioncall => {
-                Ok(Box::new(AstNode::Functioncall {
-                    value: atom?,
-                    args: argumentlist_to_ast(i.into_inner().next())?,
-                }))
-            }
+            Rule::functioncall => Ok(Box::new(AstNode::Functioncall {
+                value: atom?,
+                args: argumentlist_to_ast(i.into_inner().next())?,
+            })),
             _ => atom,
         },
         _ => atom,
@@ -198,46 +201,43 @@ fn factor_to_ast(pair: Pair<Rule>) -> Result<Box<AstNode>, SantaError> {
 
     let strnxt = next.as_str();
     Ok(match strnxt {
-        "-" => {
-            AstNode::Expression(Operator::Unary {
-              operator: UnaryOperator::Negate,
-                expr: factor_to_ast(inner_pair.next().ok_or(SantaError::ParseTreeError {
-                    cause: "Couldn't parse".into(),
-                })?)?,
-            }).boxed()
-        }
-        _ => {
-            atomexpr_to_ast(next)?
-        }
+        "-" => AstNode::Expression(Operator::Unary {
+            operator: UnaryOperator::Negate,
+            expr: factor_to_ast(inner_pair.next().ok_or(SantaError::ParseTreeError {
+                cause: "Couldn't parse".into(),
+            })?)?,
+        })
+        .boxed(),
+        _ => atomexpr_to_ast(next)?,
     })
 }
 
 fn term_to_ast(pair: Pair<Rule>) -> Result<Box<AstNode>, SantaError> {
-
     let mut inner_pair = pair.into_inner();
 
     let mut result = factor_to_ast(inner_pair.next().ok_or(SantaError::ParseTreeError {
         cause: "Couldn't parse".into(),
     })?)?;
 
-
     while let Some(operator) = inner_pair.next() {
         let curr = inner_pair.next().ok_or(SantaError::ParseTreeError {
             cause: "Couldn't parse".into(),
         })?;
 
-
         let new_result = AstNode::Expression(Operator::Binary {
             operator: match operator.as_str() {
                 "*" => BinaryOperator::Multiply,
                 "/" => BinaryOperator::Divide,
-                _ => return Err(SantaError::ParseTreeError {
-                    cause: "Invalid operator".into(),
-                })
+                _ => {
+                    return Err(SantaError::ParseTreeError {
+                        cause: "Invalid operator".into(),
+                    })
+                }
             },
             lhs: result,
-            rhs: factor_to_ast(curr)?
-        }).boxed();
+            rhs: factor_to_ast(curr)?,
+        })
+        .boxed();
         result = new_result;
     }
 
@@ -245,31 +245,31 @@ fn term_to_ast(pair: Pair<Rule>) -> Result<Box<AstNode>, SantaError> {
 }
 
 fn expression_to_ast(pair: Pair<Rule>) -> Result<Box<AstNode>, SantaError> {
-
     let mut inner_pair = pair.into_inner();
 
     let mut result = term_to_ast(inner_pair.next().ok_or(SantaError::ParseTreeError {
         cause: "Couldn't parse".into(),
     })?)?;
 
-
     while let Some(operator) = inner_pair.next() {
         let curr = inner_pair.next().ok_or(SantaError::ParseTreeError {
             cause: "Couldn't parse".into(),
         })?;
 
-
         let new_result = AstNode::Expression(Operator::Binary {
-           operator: match operator.as_str() {
-               "+" => BinaryOperator::Add,
-               "-" => BinaryOperator::Subtract,
-               _ => return Err(SantaError::ParseTreeError {
-                   cause: "Invalid operator".into(),
-               })
-           },
+            operator: match operator.as_str() {
+                "+" => BinaryOperator::Add,
+                "-" => BinaryOperator::Subtract,
+                _ => {
+                    return Err(SantaError::ParseTreeError {
+                        cause: "Invalid operator".into(),
+                    })
+                }
+            },
             lhs: result,
-            rhs: term_to_ast(curr)?
-        }).boxed();
+            rhs: term_to_ast(curr)?,
+        })
+        .boxed();
         result = new_result;
     }
 
@@ -292,11 +292,12 @@ fn statement_to_ast(pair: Pair<Rule>) -> Result<Box<AstNode>, SantaError> {
             Ok(AstNode::Assignment {
                 name: name_to_ast(name)?,
                 expression: expression_to_ast(expression)?,
-            }.boxed())
-        },
-        Rule::function => {
-            function_to_ast(pair)
-        },
+            }
+            .boxed())
+        }
+        Rule::expr => expression_to_ast(pair),
+        Rule::function => function_to_ast(pair),
+        Rule::returnstatement => return_to_ast(pair),
         _ => Err(SantaError::ParseTreeError {
             cause: "Not implemented".into(),
         }),
@@ -311,14 +312,18 @@ fn file_to_ast(pairs: Pair<Rule>) -> Result<Vec<Box<AstNode>>, SantaError> {
 
         match r {
             Rule::statement => {
-                ast.push(statement_to_ast(pair.into_inner().next().ok_or(SantaError::ParseTreeError {
-                    cause: "Couldn't parse".into(),
-                })?)?);
-            },
+                ast.push(statement_to_ast(pair.into_inner().next().ok_or(
+                    SantaError::ParseTreeError {
+                        cause: "Couldn't parse".into(),
+                    },
+                )?)?);
+            }
             Rule::EOI => break,
-            _ => return Err(SantaError::ParseTreeError {
-                cause: "Not implemented".into(),
-            }),
+            _ => {
+                return Err(SantaError::ParseTreeError {
+                    cause: "Not implemented".into(),
+                })
+            }
         }
     }
 
@@ -326,38 +331,31 @@ fn file_to_ast(pairs: Pair<Rule>) -> Result<Vec<Box<AstNode>>, SantaError> {
 }
 
 pub fn parse_string(input: &str) -> Result<Vec<Box<AstNode>>, SantaError> {
-    let pairs = SantaParser::parse(Rule::file, input).map_err(|e| SantaError::ParseError {
+    let mut pairs = SantaParser::parse(Rule::file, input).map_err(|e| SantaError::ParseError {
         cause: format!("{}", e),
     })?;
 
-    for pair in pairs {
-        match pair.as_rule() {
-            Rule::file => {
-                return file_to_ast(pair);
-            }
-            _ => {
-                return Err(SantaError::ParseTreeError {
-                    cause: "Couldn't parse".into(),
-                });
-            }
-        }
-    }
-
-    return Err(SantaError::ParseTreeError {
+    let first_pair = pairs.next().ok_or(SantaError::ParseTreeError {
         cause: "Couldn't parse".into(),
-    });
-}
+    })?;
 
+    match first_pair.as_rule() {
+        Rule::file => file_to_ast(first_pair),
+        _ => Err(SantaError::ParseTreeError {
+            cause: "Couldn't parse".into(),
+        }),
+    }
+}
 
 pub fn parse_string_or_panic(input: &str) -> Vec<Box<AstNode>> {
     match parse_string(input) {
         Ok(i) => i,
         Err(e) => {
             match e {
-                SantaError::ParseError {cause} => {
+                SantaError::ParseError { cause } => {
                     println!("{}", cause);
                 }
-                _ => println!("{}", e)
+                _ => println!("{}", e),
             };
 
             panic!()

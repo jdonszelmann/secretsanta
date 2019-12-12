@@ -58,10 +58,14 @@ subtract = {"-"}
 assignment = {name ~ "=" ~ expr ~ semicolon}
 semicolon = { ";" }
 
+expression = _{expr ~ semicolon}
+
 block = { "{" ~ statement* ~ "}" }
 
+returnstatement = { "return" ~ expr ~ semicolon}
+
 blockstatement = _{function}
-statement = { assignment | blockstatement}
+statement = { assignment | blockstatement | returnstatement | expression}
 
 
 file = { SOI ~ (statement)* ~ EOI }
