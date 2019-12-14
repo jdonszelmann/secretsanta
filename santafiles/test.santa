@@ -1,9 +1,6 @@
 
-a = 3;
-b = 4;
-x = a + b;
-
-print(x);
-
+a = 3 + 5;
+b = 8;
+print(a + b);
 
 

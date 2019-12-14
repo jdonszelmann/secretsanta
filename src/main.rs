@@ -5,7 +5,7 @@
 use crate::parser::parse_string_or_panic;
 use clap::{App, Arg, SubCommand, AppSettings};
 use std::fs;
-use crate::manual::{run_manual, get_manual_id};
+use crate::manual::{run_manual, get_manual_id, set_manual_id};
 
 mod error;
 mod eval;
@@ -37,6 +37,13 @@ fn main() {
                 .about("Print the manual")
         )
 
+        .subcommand(
+            SubCommand::with_name("RESET")
+                .arg(Arg::with_name("version").required(true))
+                .about("DO NOT USE, RESETS THE PROGRAMMING LANGUAGE")
+                .setting(AppSettings::Hidden)
+        )
+
         .get_matches();
 
     match matches.subcommand() {
@@ -52,6 +59,12 @@ fn main() {
         }
         ("manual", Some(matches)) => {
             run_manual()
+        },
+        ("RESET", Some(matches)) => {
+            let version = matches
+                .value_of("version")
+                .expect("No version");
+            set_manual_id(version.parse().expect("Integer expected"));
         },
         _ => (),
     }
