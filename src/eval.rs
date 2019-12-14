@@ -3,6 +3,7 @@ use crate::function::{ArgumentList, Function, ParameterList};
 use crate::object::Object;
 use crate::parser::Operator;
 use crate::parser::{AstNode, BinaryOperator, UnaryOperator};
+use crate::builtins::get_builtins;
 use std::collections::HashMap;
 
 #[derive(Debug)]
@@ -13,7 +14,24 @@ pub struct Scope<'s> {
 
 impl<'s> Scope<'s> {
     pub fn new() -> Self {
-        Self::with_parent(None)
+        let mut res = Self::with_parent(None);
+        get_builtins(&mut res);
+        res
+    }
+
+    pub fn add_builtin_fn(
+        &mut self,
+        name: &str,
+        parameters: ParameterList,
+        function: fn(&mut Scope) -> Object) {
+
+        self.set_variable(
+            name.into(),
+            Object::Function(Function::Builtin(
+                parameters,
+                function,
+            )),
+        );
     }
 
     pub fn with_parent(parent: Option<&'s mut Scope<'s>>) -> Self {

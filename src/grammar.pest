@@ -2,25 +2,6 @@
 WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
 COMMENT = _{ ("/*" ~ (!"*/" ~ ANY)* ~ "*/") | ("//" ~ (!"\n" ~ ANY)*)  }
 
-
-// value = _{ object | array | string | number | boolean | null }
-
-// boolean = { "true" | "false" }
-//
-// null = { "null" }
-
-// object = {
-//     "{" ~ "}" |
-//     "{" ~ pair ~ ("," ~ pair)* ~ "}"
-// }
-// pair = { string ~ ":" ~ value }
-//
-// array = {
-//     "[" ~ "]" |
-//     "[" ~ value ~ ("," ~ value)* ~ "]"
-// }
-
-
 integer = @{ ASCII_DIGIT+ }
 float = @{ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT* }
 

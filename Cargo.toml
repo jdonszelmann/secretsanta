@@ -11,3 +11,7 @@ pest = "2.1.2"
 clap = "2.33.0"
 pest_derive = "2.1.0"
 failure = "0.1.6"
+
+[profile.release]
+opt-level=3
+lto=true

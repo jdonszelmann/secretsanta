@@ -3,8 +3,9 @@
 #![allow(clippy::ptr_arg)]
 
 use crate::parser::parse_string_or_panic;
-use clap::{App, Arg};
+use clap::{App, Arg, SubCommand, AppSettings};
 use std::fs;
+use crate::manual::{run_manual, get_manual_id};
 
 mod error;
 mod eval;
@@ -12,21 +13,48 @@ mod function;
 mod object;
 mod parser;
 mod builtins;
+mod manual;
 
 fn main() {
+    get_manual_id();
+
     let matches = App::new("Santa Programming Language")
         .version("1.0.0")
         .author("Santa <noreply@santa.northpole>")
-        .about("Runs your own Santa program!")
-        .arg(Arg::with_name("filename").required(true))
+        .about("The santa programming system \n\nThis system is used internally at the north \
+            pole Santa base for the indexing of the naughty and nice \
+            list.")
+        .setting(AppSettings::ArgRequiredElseHelp)
+
+        .subcommand(
+            SubCommand::with_name("run")
+                .about("Run a santa file")
+                .arg(Arg::with_name("filename").required(true))
+        )
+
+        .subcommand(
+            SubCommand::with_name("manual")
+                .about("Print the manual")
+        )
+
         .get_matches();
 
-    let filename = matches
-        .value_of("filename")
-        .expect("Santa couldn't read your filename!");
-    let file = fs::read_to_string(filename).expect("Santa's elves couldn't find your file!");
+    match matches.subcommand() {
+        ("run", Some(matches)) => {
+            let filename = matches
+                .value_of("filename")
+                .expect("Santa couldn't read your filename!");
+            let file = fs::read_to_string(filename).expect("Santa's elves couldn't find your file!");
 
-    parse_string_or_panic(&file);
+            let ast = parse_string_or_panic(&file);
+
+            eval::eval(ast);
+        }
+        ("manual", Some(matches)) => {
+            run_manual()
+        },
+        _ => (),
+    }
 }
 
 #[cfg(test)]
@@ -36,6 +64,7 @@ mod tests {
     use crate::object::Object;
     use crate::parser::AstNode::{Assignment, Expression, Integer, Name};
     use crate::parser::{parse_string_or_panic, BinaryOperator, Operator, UnaryOperator};
+    use crate::manual::run_manual;
 
     #[test]
     fn test_simple_1() {
@@ -421,5 +450,30 @@ a(3);
             }
             _ => panic!(),
         }
+    }
+
+    #[test]
+    #[ignore]
+    fn test_print_1() {
+        let ast = parse_string_or_panic(
+            "
+a = 3;
+b = 4;
+x = a + b;
+
+print(x);
+",
+        );
+
+        let mut scope = Scope::new();
+        eval_with_scope(ast, &mut scope);
+    }
+
+
+
+    #[test]
+    #[ignore]
+    fn test_manual() {
+        run_manual();
     }
 }
