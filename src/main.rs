@@ -862,4 +862,19 @@ a = \"yeet\" + \"yeet\";
 
         assert_eq!(scope.get_variable(&"a".into()), Some(Object::String("yeetyeet".into())));
     }
+
+    #[test]
+    fn test_stringindex_1() {
+        let ast = parse_string_or_panic(
+            "
+a = \"yeet\"[3];
+
+            ",
+        );
+
+        let mut scope = Scope::new();
+        eval_with_scope(ast, &mut scope);
+
+        assert_eq!(scope.get_variable(&"a".into()), Some(Object::String("t".into())));
+    }
 }

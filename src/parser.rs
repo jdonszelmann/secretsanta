@@ -21,6 +21,8 @@ pub enum BinaryOperator {
     Less,
     GreaterEquals,
     LessEquals,
+
+    Index,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -261,6 +263,12 @@ fn argumentlist_to_ast(pair: Option<Pair<Rule>>) -> Result<Vec<Box<AstNode>>, Sa
     }
 }
 
+
+
+fn index_to_ast(pair: Pair<Rule>) -> Result<Box<AstNode>, SantaError> {
+    comparison_to_ast(pair)
+}
+
 fn atomexpr_to_ast(pair: Pair<Rule>) -> Result<Box<AstNode>, SantaError> {
     let mut innerpair = pair.into_inner();
     let atom = atom_to_ast(innerpair.next().ok_or(SantaError::ParseTreeError {
@@ -273,6 +281,15 @@ fn atomexpr_to_ast(pair: Pair<Rule>) -> Result<Box<AstNode>, SantaError> {
                 value: atom?,
                 args: argumentlist_to_ast(i.into_inner().next())?,
             })),
+            Rule::index => Ok(Box::new(AstNode::Expression(
+                Operator::Binary {
+                    operator: BinaryOperator::Index,
+                    lhs: atom?,
+                    rhs: index_to_ast(i.into_inner().next().ok_or(SantaError::ParseTreeError {
+                        cause: "Couldn't parse".into(),
+                    })?)?
+                }
+            ))),
             _ => atom,
         },
         _ => atom,

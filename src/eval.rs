@@ -111,6 +111,8 @@ pub fn eval_node(node: &AstNode, scope: &mut Scope) -> Result<Object, SantaError
                     BinaryOperator::GreaterEquals => lhs_eval.greaterequals(&rhs_eval),
                     BinaryOperator::Equals => lhs_eval.equals(&rhs_eval),
                     BinaryOperator::NotEquals => lhs_eval.notequals(&rhs_eval),
+
+                    BinaryOperator::Index => lhs_eval.index(&rhs_eval),
                 }
             }
             Operator::Unary { operator, expr } => {

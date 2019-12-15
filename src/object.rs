@@ -306,4 +306,20 @@ impl Object {
             }),
         }
     }
+
+    pub fn index(&self, other: &Object) -> Result<Object, SantaError> {
+        match (self, other) {
+            (Self::String(i), Self::Integer(j)) => Ok(Self::String(i.chars().nth(*j as usize).ok_or(SantaError::IndexOutOfBounds)?.to_string())),
+
+            // Blanked impl for booleans to work as integers
+            (i, Self::Boolean(j)) => i.index(&Self::Integer(*j as i64)),
+
+            _ => Err(SantaError::InvalidOperationError {
+                cause: format!(
+                    "indexing {:?} with {:?} not supported",
+                    self, other
+                ),
+            }),
+        }
+    }
 }

@@ -12,6 +12,9 @@ pub enum SantaError {
     #[fail(display = "Operation not supported: {}", cause)]
     InvalidOperationError { cause: String },
 
+    #[fail(display = "Index out of bounds")]
+    IndexOutOfBounds,
+
     #[fail(
         display = "This exception is raised when a fucntion wants to return.\
 The evaluator will never actually raise this error but will instead return it's value.\

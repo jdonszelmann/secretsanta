@@ -18,11 +18,12 @@ parameter = _{ name }
 parameterlist = {parameter ~ ("," ~ parameter)* ~ ","?}
 function = {"function" ~ name? ~ "(" ~ parameterlist? ~ ")" ~ block}
 
+index = {"[" ~ comparison ~ "]"}
 
 argument = _{ comparison }
 argumentlist = {argument ~ ("," ~ argument)* ~ ","?}
 functioncall = {"(" ~ argumentlist? ~ ")"}
-trailer = _{functioncall}
+trailer = _{functioncall | index}
 
 // Yes, an if statement is possible here too to get a ternary operator
 atom = _{ ifstatement | function | boolean | name | number | string | "(" ~ comparison ~ ")" }
