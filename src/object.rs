@@ -1,16 +1,50 @@
 use crate::error::SantaError;
 use crate::function::{ArgumentList, Function};
 use std::fmt::{Display, Error, Formatter};
+use std::collections::HashMap;
+use crate::object::Object::Boolean;
+use std::hash::{Hash, Hasher};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum Object {
     Integer(i64),
     Float(f64),
     String(String),
     Function(Function),
     Boolean(bool),
+    List(Vec<Object>),
+    Map(HashMap<Object, Object>),
     None,
 }
+
+impl Hash for Object {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Self::Integer(i) => i.hash(state),
+            Self::Float(i) => format!("{}", i).hash(state),
+            Self::String(i) => i.hash(state),
+            Self::None => 0.hash(state),
+            Self::Function(func) => unimplemented!("Functions are not a hashable type!"),
+            Self::Boolean(i) => i.hash(state),
+            Self::List(func) => unimplemented!("Lists are not a hashable type!"),
+            Self::Map(func) => unimplemented!("Maps are not a hashable type!"),
+        }
+    }
+}
+
+impl PartialEq for Object {
+    fn eq(&self, other: &Self) -> bool {
+        self.equals(other).map(|i| {
+            if let Self::Boolean(v) = i {
+                v
+            } else {
+                false
+            }
+        }).unwrap_or(false)
+    }
+}
+
+impl Eq for Object {}
 
 impl Display for Object {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
@@ -21,6 +55,9 @@ impl Display for Object {
             Self::None => write!(f, "None"),
             Self::Function(func) => write!(f, "{:?}", func),
             Self::Boolean(i) => write!(f, "{}", i),
+            Self::List(list) => write!(f, "{:?}", list),
+            Self::Map(map) => write!(f, "{:?}", map),
+
         }
     }
 }
@@ -46,6 +83,8 @@ impl Object {
 
             (Self::Boolean(i), other) => Self::Integer(*i as i64).add(other),
             (other, Self::Boolean(i)) => other.add(&Self::Integer(*i as i64)),
+
+            (Self::String(string), other) => Ok(Self::String(format!("{}{}", string, other))),
 
             _ => Err(SantaError::InvalidOperationError {
                 cause: format!("addition between {:?} and {:?} not supported", self, other),
@@ -85,6 +124,8 @@ impl Object {
 
             (Self::Boolean(i), other) => Self::Integer(*i as i64).multiply(other),
             (other, Self::Boolean(i)) => other.multiply(&Self::Integer(*i as i64)),
+
+            (Self::String(string), Self::Integer(i)) => Ok(Self::String(string.repeat(*i as usize))),
 
             _ => Err(SantaError::InvalidOperationError {
                 cause: format!(

@@ -802,4 +802,64 @@ while a < 10 {
 
         assert_eq!(scope.get_variable(&"a".into()), Some(Object::Integer(10)));
     }
+
+    #[test]
+    fn test_stringrepeat_1() {
+        let ast = parse_string_or_panic(
+            "
+a = \"yeet\" * 4;
+
+            ",
+        );
+
+        let mut scope = Scope::new();
+        eval_with_scope(ast, &mut scope);
+
+        assert_eq!(scope.get_variable(&"a".into()), Some(Object::String("yeetyeetyeetyeet".into())));
+    }
+
+    #[test]
+    fn test_concat_1() {
+        let ast = parse_string_or_panic(
+            "
+a = \"yeet\" + 4;
+
+            ",
+        );
+
+        let mut scope = Scope::new();
+        eval_with_scope(ast, &mut scope);
+
+        assert_eq!(scope.get_variable(&"a".into()), Some(Object::String("yeet4".into())));
+    }
+
+    #[test]
+    fn test_concat_2() {
+        let ast = parse_string_or_panic(
+            "
+a = \"yeet\" + 4.1;
+
+            ",
+        );
+
+        let mut scope = Scope::new();
+        eval_with_scope(ast, &mut scope);
+
+        assert_eq!(scope.get_variable(&"a".into()), Some(Object::String("yeet4.1".into())));
+    }
+
+    #[test]
+    fn test_concat_3() {
+        let ast = parse_string_or_panic(
+            "
+a = \"yeet\" + \"yeet\";
+
+            ",
+        );
+
+        let mut scope = Scope::new();
+        eval_with_scope(ast, &mut scope);
+
+        assert_eq!(scope.get_variable(&"a".into()), Some(Object::String("yeetyeet".into())));
+    }
 }
