@@ -50,6 +50,8 @@ pub enum AstNode {
     Boolean(bool),
     Name(String),
     String(String),
+    List(Vec<Box<AstNode>>),
+    Map(Vec<(Box<AstNode>, Box<AstNode>)>),
     Function {
         name: Box<AstNode>,
         parameterlist: ParameterList,
@@ -122,6 +124,40 @@ fn name_to_ast(pair: Pair<Rule>) -> Result<Box<AstNode>, SantaError> {
 
 fn string_to_ast(pair: Pair<Rule>) -> Result<Box<AstNode>, SantaError> {
     Ok(AstNode::String(pair.as_str().replace(&['"', '\"'][..], "").into()).boxed())
+}
+
+fn list_to_ast(pair: Pair<Rule>) -> Result<Box<AstNode>, SantaError> {
+    let mut result = vec![];
+    let mut inner_pair = pair.into_inner();
+    while let Some(i) = inner_pair.next() {
+        result.push(comparison_to_ast(i)?);
+    }
+
+    Ok(AstNode::List(result).boxed())
+}
+
+fn pair_to_ast(pair: Pair<Rule>) -> Result<(Box<AstNode>, Box<AstNode>), SantaError> {
+    let mut inner_pair = pair.into_inner();
+
+    let left = comparison_to_ast(inner_pair.next().ok_or(SantaError::ParseTreeError {
+        cause: "Couldn't parse to integer".into(),
+    })?)?;
+
+    let right = comparison_to_ast(inner_pair.next().ok_or(SantaError::ParseTreeError {
+        cause: "Couldn't parse to integer".into(),
+    })?)?;
+
+    Ok((left, right))
+}
+
+fn map_to_ast(pair: Pair<Rule>) -> Result<Box<AstNode>, SantaError> {
+    let mut result = vec![];
+    let mut inner_pair = pair.into_inner();
+    while let Some(i) = inner_pair.next() {
+        result.push(pair_to_ast(i)?);
+    }
+
+    Ok(AstNode::Map(result).boxed())
 }
 
 fn return_to_ast(pair: Pair<Rule>) -> Result<Box<AstNode>, SantaError> {
@@ -227,6 +263,8 @@ fn atom_to_ast(pair: Pair<Rule>) -> Result<Box<AstNode>, SantaError> {
         Rule::ifstatement => ifstatement_to_ast(pair),
         Rule::name => name_to_ast(pair),
         Rule::integer => integer_to_ast(pair),
+        Rule::list => list_to_ast(pair),
+        Rule::map => map_to_ast(pair),
         Rule::boolean => boolean_to_ast(pair),
         Rule::float => float_to_ast(pair),
         Rule::string => string_to_ast(pair),

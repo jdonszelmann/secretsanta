@@ -136,6 +136,13 @@ pub fn eval_node(node: &AstNode, scope: &mut Scope) -> Result<Object, SantaError
             }
         }
 
+        AstNode::List(list) => Ok(Object::List( list.iter()
+            .map(|i| eval_node(i, scope))
+            .collect::<Result<Vec<Object>, SantaError>>()?)),
+
+        AstNode::Map(map) => Ok(Object::Map( map.iter()
+            .map(|i| Ok((eval_node(i.0.as_ref(), scope)?, eval_node(i.1.as_ref(), scope)?)))
+            .collect::<Result<HashMap<Object, Object>, SantaError>>()?)),
         AstNode::Integer(integer) => Ok(Object::Integer(integer.clone())),
         AstNode::Boolean(boolean) => Ok(Object::Boolean(boolean.clone())),
         AstNode::Float(float) => Ok(Object::Float(float.clone())),

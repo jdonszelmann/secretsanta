@@ -93,8 +93,14 @@ fn generate_manual() {
     let mainfile_path = manual_dir.join(MANUAL_MAIN_FILE);
     let mut mainfile = File::create(&mainfile_path).expect("Couldn't create manual file");
 
+    const BASICS: usize = 0;
+    const CONDITIONALS: usize = 1;
+    const LOOPS: usize = 2;
+    const DATABASES: usize = 3;
+    const FUNCTIONS: usize = 4;
+
     let blocks = match unsafe{ MANUAL_ID } {
-        i if i > 0 => format!("### Complex expressions
+        i if i >= CONDITIONALS => format!("### Complex expressions
 
 #### Booleans
 
@@ -140,7 +146,7 @@ will be returned.
 {loops}
 
 ", loops=match i {
-            j if j > 1 => "
+            j if j >= LOOPS => "
 #### Loops
 
 Loop syntax is similar to that of if statements. To use them use the `while` keyword.
@@ -162,7 +168,7 @@ while a < 1000 {
     };
 
     let job = match unsafe { MANUAL_ID } {
-        i if i > 2 => "
+        i if i >= DATABASES => "
 
 You will become our main database engineer. Because you are still new here, we will first test your capabilities.
 Check this manual periodically as it will update with tests.
@@ -172,7 +178,7 @@ Check this manual periodically as it will update with tests.
     };
 
     let database = match unsafe{ MANUAL_ID } {
-        i if i > 2 => "### Database
+        i if i >= DATABASES => "### Database
 
 Built into the language is a database. This database is regenerated every time you start a program to
 avoid accidental corruption.
@@ -192,7 +198,7 @@ db_get_by_id(\"Tablename\", Column, row);
         _ => ""
     };
 
-    let basics = "### Basics
+    let basics = format!("### Basics
 
 The santa language supports many common syntax patterns such as
 variable assignment, addition (`+`), subtraction (`-`), multiplication (`*`) and division (`/`).
@@ -223,10 +229,30 @@ Any number, under division, will be converted to a float.
 
 Comments can be added to code by prefixing them with a double slash (`//`)
 
-";
+#### Datatypes
+
+The datatypes available in the Santa language are:
+
+* String
+{boolean}
+{function}
+* List
+* Map
+* Integer
+* Float
+* None
+
+#### Indexing
+
+Strings,
+
+",
+        boolean = if unsafe { MANUAL_ID } >= CONDITIONALS {"* Boolean"} else {""},
+        function = if unsafe { MANUAL_ID } >= FUNCTIONS {"* Function"} else {""},
+    );
 
     let functions = match unsafe { MANUAL_ID } {
-        i if i > 3 => {
+        i if i >= FUNCTIONS => {
             "### Functions
 
 

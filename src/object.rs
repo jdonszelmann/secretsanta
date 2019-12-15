@@ -2,7 +2,6 @@ use crate::error::SantaError;
 use crate::function::{ArgumentList, Function};
 use std::fmt::{Display, Error, Formatter};
 use std::collections::HashMap;
-use crate::object::Object::Boolean;
 use std::hash::{Hash, Hasher};
 
 #[derive(Debug, Clone)]
@@ -24,23 +23,25 @@ impl Hash for Object {
             Self::Float(i) => format!("{}", i).hash(state),
             Self::String(i) => i.hash(state),
             Self::None => 0.hash(state),
-            Self::Function(func) => unimplemented!("Functions are not a hashable type!"),
+            Self::Function(_) => unimplemented!("Functions are not a hashable type!"),
             Self::Boolean(i) => i.hash(state),
-            Self::List(func) => unimplemented!("Lists are not a hashable type!"),
-            Self::Map(func) => unimplemented!("Maps are not a hashable type!"),
+            Self::List(_) => unimplemented!("Lists are not a hashable type!"),
+            Self::Map(_) => unimplemented!("Maps are not a hashable type!"),
         }
     }
 }
 
 impl PartialEq for Object {
     fn eq(&self, other: &Self) -> bool {
-        self.equals(other).map(|i| {
+       let res =  self.equals(other).map(|i| {
             if let Self::Boolean(v) = i {
                 v
             } else {
                 false
             }
-        }).unwrap_or(false)
+        }).unwrap_or(false);
+
+        res
     }
 }
 
@@ -182,6 +183,9 @@ impl Object {
             (Self::Float(i), Self::Integer(j)) => Ok(Self::Boolean(*i == (*j as f64))),
             (Self::Integer(i), Self::Float(j)) => Ok(Self::Boolean((*i as f64) == *j)),
 
+            (Self::List(i), Self::List(j)) => Ok(Self::Boolean(i == j)),
+            (Self::Map(i), Self::Map(j)) => Ok(Self::Boolean(i == j)),
+
             (Self::None, Self::None) => Ok(Self::Boolean(true)),
 
             (Self::Function(i), Self::Function(j)) => Ok(Self::Boolean(i == j)),
@@ -210,16 +214,14 @@ impl Object {
             (Self::Float(i), Self::Integer(j)) => Ok(Self::Boolean(*i != (*j as f64))),
             (Self::Integer(i), Self::Float(j)) => Ok(Self::Boolean((*i as f64) != *j)),
 
+            (Self::List(i), Self::List(j)) => Ok(Self::Boolean(i != j)),
+            (Self::Map(i), Self::Map(j)) => Ok(Self::Boolean(i != j)),
+
             (Self::None, Self::None) => Ok(Self::Boolean(true)),
 
             (Self::Function(i), Self::Function(j)) => Ok(Self::Boolean(i != j)),
 
-            _ => Err(SantaError::InvalidOperationError {
-                cause: format!(
-                    "comparison between {:?} and {:?} not supported",
-                    self, other
-                ),
-            }),
+            (i, j) => i.equals(j)?.negate()
         }
     }
 
@@ -310,6 +312,10 @@ impl Object {
     pub fn index(&self, other: &Object) -> Result<Object, SantaError> {
         match (self, other) {
             (Self::String(i), Self::Integer(j)) => Ok(Self::String(i.chars().nth(*j as usize).ok_or(SantaError::IndexOutOfBounds)?.to_string())),
+            (Self::List(i), Self::Integer(j)) => Ok(i.get(*j as usize).ok_or(SantaError::IndexOutOfBounds)?.clone()),
+
+            (Self::Map(i), j) => Ok(i.get(j).ok_or(SantaError::KeyError)?.clone()),
+
 
             // Blanked impl for booleans to work as integers
             (i, Self::Boolean(j)) => i.index(&Self::Integer(*j as i64)),

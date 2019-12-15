@@ -15,6 +15,9 @@ pub enum SantaError {
     #[fail(display = "Index out of bounds")]
     IndexOutOfBounds,
 
+    #[fail(display = "KeyError, key not found")]
+    KeyError,
+
     #[fail(
         display = "This exception is raised when a fucntion wants to return.\
 The evaluator will never actually raise this error but will instead return it's value.\

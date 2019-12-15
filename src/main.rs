@@ -70,6 +70,7 @@ mod tests {
     use crate::object::Object;
     use crate::parser::AstNode::{Assignment, Expression, Integer, Name};
     use crate::parser::{parse_string_or_panic, BinaryOperator, Operator, UnaryOperator};
+    use std::collections::HashMap;
 
     #[test]
     fn test_simple_1() {
@@ -487,7 +488,6 @@ a(3);
     }
 
     #[test]
-    #[ignore]
     fn test_print_1() {
         let ast = parse_string_or_panic(
             "
@@ -876,5 +876,95 @@ a = \"yeet\"[3];
         eval_with_scope(ast, &mut scope);
 
         assert_eq!(scope.get_variable(&"a".into()), Some(Object::String("t".into())));
+    }
+
+    #[test]
+    fn test_list_1() {
+        let ast = parse_string_or_panic(
+            "
+a = [1, 2, 3, 4];
+
+            ",
+        );
+
+        let mut scope = Scope::new();
+        eval_with_scope(ast, &mut scope);
+
+        assert_eq!(scope.get_variable(&"a".into()), Some(Object::List(vec![
+            Object::Integer(1),
+            Object::Integer(2),
+            Object::Integer(3),
+            Object::Integer(4),
+        ])));
+    }
+
+    #[test]
+    fn test_list_2() {
+        let ast = parse_string_or_panic(
+            "
+a = [1, 2, 3, 4];
+
+            ",
+        );
+
+        let mut scope = Scope::new();
+        eval_with_scope(ast, &mut scope);
+
+        assert_ne!(scope.get_variable(&"a".into()), Some(Object::List(vec![
+            Object::Integer(1),
+            Object::Integer(2),
+            Object::Integer(4),
+            Object::Integer(4),
+        ])));
+    }
+
+    #[test]
+    fn test_list_3() {
+        let ast = parse_string_or_panic(
+            "
+a = [1, 2, 3, 4][2];
+
+            ",
+        );
+
+        let mut scope = Scope::new();
+        eval_with_scope(ast, &mut scope);
+
+        assert_eq!(scope.get_variable(&"a".into()), Some(Object::Integer(3)));
+    }
+
+    #[test]
+    fn test_map_1() {
+        let ast = parse_string_or_panic(
+            "
+a = {1: 2, 3: 4, 5: 6};
+
+            ",
+        );
+
+        let mut scope = Scope::new();
+        eval_with_scope(ast, &mut scope);
+
+        let mut map = HashMap::new();
+        map.insert(Object::Integer(1), Object::Integer(2));
+        map.insert(Object::Integer(3), Object::Integer(4));
+        map.insert(Object::Integer(5), Object::Integer(6));
+        assert_eq!(scope.get_variable(&"a".into()), Some(Object::Map(map)));
+    }
+
+    #[test]
+    fn test_map_2() {
+        let ast = parse_string_or_panic(
+            "
+a = {1: 2, 3: 4, 5: 6}[5];
+
+            ",
+        );
+
+        let mut scope = Scope::new();
+        eval_with_scope(ast, &mut scope);
+
+
+        assert_eq!(scope.get_variable(&"a".into()), Some(Object::Integer(6)));
     }
 }
