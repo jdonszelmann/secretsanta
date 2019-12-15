@@ -1,5 +1,5 @@
-use failure::Fail;
 use crate::object::Object;
+use failure::Fail;
 
 #[derive(Debug, Fail)]
 pub enum SantaError {
@@ -12,8 +12,11 @@ pub enum SantaError {
     #[fail(display = "Operation not supported: {}", cause)]
     InvalidOperationError { cause: String },
 
-    #[fail(display = "This exception is raised when a fucntion wants to return.\
+    #[fail(
+        display = "This exception is raised when a fucntion wants to return.\
 The evaluator will never actually raise this error but will instead return it's value.\
-value: {}", value)]
+value: {}",
+        value
+    )]
     ReturnException { value: Object },
 }

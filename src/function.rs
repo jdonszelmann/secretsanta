@@ -1,4 +1,5 @@
-use crate::eval::{eval_with_scope, Scope};
+use crate::error::SantaError;
+use crate::eval::{eval_block_with_scope_ref, Scope};
 use crate::function::Function::{Builtin, User};
 use crate::object::Object;
 use crate::parser::AstNode;
@@ -73,17 +74,17 @@ impl PartialEq for Function {
 }
 
 impl Function {
-    pub fn call(&self, argumentlist: ArgumentList) -> Object {
+    pub fn call(&self, argumentlist: ArgumentList) -> Result<Object, SantaError> {
         let mut scope = Scope::new();
 
         match self {
             Self::Builtin(params, b) => {
                 scope.load_arglist(argumentlist, params.clone());
-                b(&mut scope)
+                Ok(b(&mut scope))
             }
             Self::User(params, ast) => {
                 scope.load_arglist(argumentlist, params.clone());
-                eval_with_scope(ast.to_vec(), &mut scope)
+                eval_block_with_scope_ref(&ast, &mut scope)
             }
         }
     }

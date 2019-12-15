@@ -1,21 +1,20 @@
-use std::process::Command;
-use std::io::{Write, Read};
+use colored::Colorize;
+use regex::Regex;
 use std::env::current_exe;
 use std::fs::File;
+use std::io::{Read, Write};
 use std::path::PathBuf;
-use regex::Regex;
-use failure::_core::cmp::Ordering;
-use colored::Colorize;
+use std::process::Command;
 
 pub static mut MANUAL_ID: usize = 0;
 const MANUAL_MAIN_FILE: &'static str = "main.md";
 const MANUAL_DIR: &'static str = ".manual";
 
-fn get_manual_dir() -> PathBuf{
-    let executable_file = current_exe()
-        .expect("Couln't find executable directory");
+fn get_manual_dir() -> PathBuf {
+    let executable_file = current_exe().expect("Couln't find executable directory");
 
-    let executable_dir = executable_file.parent()
+    let executable_dir = executable_file
+        .parent()
         .expect("Couldn't access parent directory of executable");
 
     let manual_dir = executable_dir.join(MANUAL_DIR);
@@ -28,21 +27,21 @@ pub fn get_manual_id() {
     let manual_dir = get_manual_dir();
 
     let mainfile_path = manual_dir.join(MANUAL_MAIN_FILE);
-    let manualid= match File::open(&mainfile_path) {
+    let manualid = match File::open(&mainfile_path) {
         Ok(mut mainfile) => {
             let mut buf = String::new();
             mainfile.read_to_string(&mut buf).expect("Couldn't read");
 
             let re = Regex::new(r"manual version \d.\d.(\d+)").unwrap();
             let mat = match re.captures(&buf) {
-                Some(i) => match i.get(1){
+                Some(i) => match i.get(1) {
                     Some(m) => m.as_str(),
                     None => "0",
                 },
                 None => "0",
             };
 
-            match mat.parse(){
+            match mat.parse() {
                 Ok(i) => i,
                 Err(_) => 0,
             }
@@ -50,21 +49,18 @@ pub fn get_manual_id() {
         Err(_) => 0,
     };
 
-
-    unsafe{ MANUAL_ID = manualid };
+    unsafe { MANUAL_ID = manualid };
 }
 
 pub fn increment_manual_id() {
-    unsafe{ MANUAL_ID += 1 };
-    let manual_dir = get_manual_dir();
+    unsafe { MANUAL_ID += 1 };
     generate_manual();
 
     println!("{}", "Good job! You have advanced to the next version of the Santa programming language. Check your manual!".red());
 }
 
 pub fn set_manual_id(version: usize) {
-    unsafe{ MANUAL_ID = version };
-    let manual_dir = get_manual_dir();
+    unsafe { MANUAL_ID = version };
     generate_manual();
 
     println!("{}", "Manual was reset.".red());
@@ -84,7 +80,7 @@ pub fn run_manual() {
     let manual_dir = get_manual_dir();
 
     let mainfile_path = manual_dir.join(MANUAL_MAIN_FILE);
-    let child = Command::new(&editor)
+    let _ = Command::new(&editor)
         .arg("-m")
         .arg(&mainfile_path)
         .status()
@@ -95,23 +91,106 @@ fn generate_manual() {
     let manual_dir = get_manual_dir();
 
     let mainfile_path = manual_dir.join(MANUAL_MAIN_FILE);
-    let mut mainfile = File::create(&mainfile_path)
-        .expect("Couldn't create manual file");
+    let mut mainfile = File::create(&mainfile_path).expect("Couldn't create manual file");
 
+    let blocks = match unsafe{ MANUAL_ID } {
+        i if i > 0 => format!("### Complex expressions
+
+#### Booleans
+
+Booleans can be used in combination with complex expressions (if/while) to create control flow.
+
+Booleans can have the value `true` and `false` and will act like the integers `1` and `0` respectively in mathmatical operations.
+The `-` operator to negate a number (`5` --> `-5`) is used to invert booleans.
+
+#### Comparison
+
+You can compare numbers and other data types using the following operators:
+
+```
+a == b;
+a != b;
+a >= b;
+a <= b;
+a > b;
+a < b;
+```
+
+You can compare floats and integers together. Watch out for floating point errors! Booleans act as the integers
+0 and 1 under comparison with an integer. Strings can be compared for euqality only.
+
+### Conditionals
+
+Using the comparison operators, you can now build programs that conditionally execute code.
+This is done with an if statement. If statements look like this:
+
+```
+if a > b {{
+    print(\"a greater than b\");
+}} else {{
+    print(\"a not greater than b\");
+}}
+
+```
+
+If statements can work as ternary operators by assigning them to a variable.
+The result of the last statement in the branch of the if statement that is executed
+will be returned.
+
+{loops}
+
+", loops=match i {
+            j if j > 1 => "
+#### Loops
+
+Loop syntax is similar to that of if statements. To use them use the `while` keyword.
+
+```
+
+a = 0;
+while a < 1000 {
+    print(a);
+    a = a + 1;
+}
+
+```
+
+",
+            _ => ""
+        }),
+        _ => "".into()
+    };
+
+    let job = match unsafe { MANUAL_ID } {
+        i if i > 2 => "
+
+You will become our main database engineer. Because you are still new here, we will first test your capabilities.
+Check this manual periodically as it will update with tests.
+
+",
+        _ => "",
+    };
 
     let database = match unsafe{ MANUAL_ID } {
-        1 => "### Database
+        i if i > 2 => "### Database
 
 Built into the language is a database. This database is regenerated every time you start a program to
 avoid accidental corruption.
 
-To read from the database, you can use the
+The database has a single table with columns (in order) <'id': int> <'name': string> <'naughty/nice': boolean>'
+
+To read from the database, you can use the following interface:
+
+```
+row = 5;
+colum = 10;
+db_get_by_id(\"Tablename\", Column, row);
+```
 
 
 ",
         _ => ""
     };
-
 
     let basics = "### Basics
 
@@ -146,6 +225,16 @@ Comments can be added to code by prefixing them with a double slash (`//`)
 
 ";
 
+    let functions = match unsafe { MANUAL_ID } {
+        i if i > 3 => {
+            "### Functions
+
+
+"
+        }
+        _ => "",
+    };
+
     mainfile.write_all(format!("
 
 # Welcome to the Santa programming language manual version 1.2.{version}
@@ -154,17 +243,23 @@ This programming language is the main system used by E.L.F incorporated.
 This system makes lists, checks them twice, and sends them to Santaclaus to see who's naughty or nice, whenever he comes
 to town.
 
-You - our new employee - will be learning the ins and outs of this language next week. Read this manual carefully.
+You - our new employee - will be learning the ins and outs of this language next week. Read this manual very carefully.
+
+{job}
 
 ## Features
 
 {basics}
+{blocks}
+
 {database}
 {functions}
 
 
 ", version=unsafe{MANUAL_ID},
         basics=basics,
+        blocks=blocks,
+        job=job,
         database=database,
         functions=functions,
 
