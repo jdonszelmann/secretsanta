@@ -1,12 +1,14 @@
 use crate::builtins::get_builtins;
 use crate::error::SantaError;
 use crate::function::{ArgumentList, Function, ParameterList};
-use crate::manual::{increment_manual_id, MANUAL_ID};
+use crate::manual::{increment_manual_id, MANUAL_ID, CONDITIONALS, LOOPS, FUNCTIONS};
 use crate::object::Object;
 use crate::parser::Operator;
 use crate::parser::{AstNode, BinaryOperator, UnaryOperator};
 use colored::Colorize;
 use std::collections::HashMap;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 #[derive(Debug)]
 pub struct Scope<'s> {
@@ -25,7 +27,7 @@ impl<'s> Scope<'s> {
         &mut self,
         name: &str,
         parameters: ParameterList,
-        function: fn(&mut Scope) -> Object,
+        function: fn(&mut Scope) -> Result<Object, SantaError>,
     ) {
         self.set_variable(
             name.into(),
@@ -69,6 +71,12 @@ impl<'s> Scope<'s> {
 
     pub fn set_variable(&mut self, name: String, value: Object) {
         if let Some(var) = self.find_variable(&name) {
+//            if unsafe {MANUAL_ID} == FUNCTIONS && name == "assert".into() {
+//                value.call(
+//                    ArgumentList::new(vec![Object::Boolean(false)])
+//                );
+//            }
+
             *var = value;
         } else {
             self.locals.insert(name, value);
@@ -85,10 +93,50 @@ impl<'s> Scope<'s> {
         }
     }
 
-    pub fn load_arglist(&mut self, arglist: ArgumentList, paramlist: ParameterList) {
-        for (param, arg) in paramlist.positional.iter().zip(arglist.positional.iter()) {
-            self.set_variable(param.clone(), arg.clone());
+    pub fn load_arglist(&mut self, arglist: ArgumentList, paramlist: ParameterList) -> Result<(), SantaError> {
+        let isvararg = if let Some(last) = paramlist.positional.last() {
+          last.starts_with("*")
+        } else {
+            false
+        };
+
+        if !isvararg && arglist.positional.len() > paramlist.positional.len() {
+            return Err(SantaError::InvalidOperationError {cause: "Too many arguments for function".into()});
+        } else if !isvararg && arglist.positional.len() < paramlist.positional.len() {
+            return Err(SantaError::InvalidOperationError {cause: "Not enough arguments for function".into()});
+        }else if isvararg && paramlist.positional.len() > 1 && arglist.positional.len() < paramlist.positional.len() -1 {
+            return Err(SantaError::InvalidOperationError {cause: "Not enough arguments for function".into()});
         }
+
+        if !isvararg {
+            for (p, arg) in paramlist.positional.iter().zip(arglist.positional.iter()) {
+                if p.starts_with("*") {
+                    return Err(SantaError::InvalidOperationError {cause: "Vararg definition not at the end of function parameterlist".into()});
+                }
+                self.set_variable(p.clone(), arg.clone());
+            }
+        } else {
+
+            let (direct, var) = arglist.positional.split_at(paramlist.positional.len()-1);
+            let (params, varargname) = paramlist.positional.split_at(paramlist.positional.len()-1);
+
+            for (p, arg) in params.iter().zip(direct.iter()) {
+                if p.starts_with("*") {
+                    return Err(SantaError::InvalidOperationError {cause: "Multiple variable argument declarations in function signature".into()});
+                }
+                self.set_variable(p.clone(), arg.clone());
+            }
+
+            let mut vararg = vec![];
+            for i in var {
+                vararg.push(i.clone());
+            }
+
+            self.set_variable(varargname[0][1..].into(), Object::List(Rc::new(RefCell::new(vararg))));
+
+        };
+
+        Ok(())
     }
 }
 
@@ -123,11 +171,23 @@ pub fn eval_node(node: &AstNode, scope: &mut Scope) -> Result<Object, SantaError
                 }
             }
         },
-        AstNode::Assignment { name, expression } => {
+        AstNode::Assignment { name, expression, indexes } => {
             let evaluated = eval_node(expression, scope)?;
+
             match name.as_ref() {
                 AstNode::Name(name) => {
-                    scope.set_variable(name.clone(), evaluated.clone());
+                    if indexes.len() > 0 {
+                        let mut curr = scope.get_variable(name).ok_or(SantaError::NoDefinitionError)?;
+                        for i in indexes.iter().take(indexes.len() - 1) {
+                            let value = eval_node(i.as_ref(), scope)?;
+                            curr = curr.index(&value)?;
+                        }
+                        // We already checked that there was 1 item in the indexes list
+                        curr.setindex(&eval_node(indexes.iter().last().unwrap().as_ref(), scope)?, &evaluated.clone())?;
+                    } else {
+                        scope.set_variable(name.clone(), evaluated.clone());
+                    }
+
                     Ok(evaluated)
                 }
                 _ => Err(SantaError::InvalidOperationError {
@@ -136,13 +196,14 @@ pub fn eval_node(node: &AstNode, scope: &mut Scope) -> Result<Object, SantaError
             }
         }
 
-        AstNode::List(list) => Ok(Object::List( list.iter()
+        AstNode::List(list) => Ok(Object::List( Rc::new(RefCell::new(list.iter()
             .map(|i| eval_node(i, scope))
-            .collect::<Result<Vec<Object>, SantaError>>()?)),
+            .collect::<Result<Vec<Object>, SantaError>>()?)))),
 
-        AstNode::Map(map) => Ok(Object::Map( map.iter()
+        AstNode::Map(map) => Ok(Object::Map( Rc::new(RefCell::new(map.iter()
             .map(|i| Ok((eval_node(i.0.as_ref(), scope)?, eval_node(i.1.as_ref(), scope)?)))
-            .collect::<Result<HashMap<Object, Object>, SantaError>>()?)),
+            .collect::<Result<HashMap<Object, Object>, SantaError>>()?)))),
+
         AstNode::Integer(integer) => Ok(Object::Integer(integer.clone())),
         AstNode::Boolean(boolean) => Ok(Object::Boolean(boolean.clone())),
         AstNode::Float(float) => Ok(Object::Float(float.clone())),
@@ -150,9 +211,7 @@ pub fn eval_node(node: &AstNode, scope: &mut Scope) -> Result<Object, SantaError
         AstNode::Name(string) => {
             Ok(scope
                 .get_variable(string)
-                .ok_or(SantaError::InvalidOperationError {
-                    cause: "Variable not defined".into(),
-                })?)
+                .ok_or(SantaError::NoDefinitionError)?)
         }
         AstNode::Functioncall { value, args } => {
             let variable = eval_node(value, scope)?;
@@ -170,6 +229,7 @@ pub fn eval_node(node: &AstNode, scope: &mut Scope) -> Result<Object, SantaError
         } => {
             let func = Object::Function(Function::User(parameterlist.clone(), code.clone()));
 
+
             // If you gave the function a name, assign it to a variable with that name.
             if let AstNode::Name(name) = *name.clone() {
                 scope.set_variable(name, func.clone());
@@ -178,7 +238,7 @@ pub fn eval_node(node: &AstNode, scope: &mut Scope) -> Result<Object, SantaError
             Ok(func)
         }
         AstNode::WhileLoop { condition, code } => {
-            if unsafe { MANUAL_ID } == 2 {
+            if unsafe { MANUAL_ID } == LOOPS {
                 println!("{}", "You used a while loop for the first time!".yellow());
                 increment_manual_id();
             }
@@ -188,7 +248,7 @@ pub fn eval_node(node: &AstNode, scope: &mut Scope) -> Result<Object, SantaError
             if let Object::Boolean(_) = value {
                 while let Object::Boolean(true) = value {
                     unsafe {
-                        scope.child(|subscope| eval_block_with_scope_ref(&code, subscope))?;
+                        scope.child(|subscope| eval_block_with_scope(&code, subscope))?;
                     }
                     value = eval_node(condition.as_ref(), scope)?;
                 }
@@ -204,7 +264,7 @@ pub fn eval_node(node: &AstNode, scope: &mut Scope) -> Result<Object, SantaError
             code,
             elsecode,
         } => {
-            if unsafe { MANUAL_ID } == 1 {
+            if unsafe { MANUAL_ID } == CONDITIONALS {
                 println!(
                     "{}",
                     "You used an if statement for the first time!".yellow()
@@ -216,9 +276,11 @@ pub fn eval_node(node: &AstNode, scope: &mut Scope) -> Result<Object, SantaError
                 unsafe {
                     scope.child(|subscope| {
                         if value {
-                            eval_block_with_scope_ref(code.as_ref(), subscope)
+                            eval_block_with_scope(code.as_ref(), subscope)
+                        } else if let Some(elsecode) = elsecode{
+                            eval_block_with_scope(elsecode.as_ref(), subscope)
                         } else {
-                            eval_block_with_scope_ref(elsecode.as_ref(), subscope)
+                            Ok(Object::None)
                         }
                     })
                 }
@@ -240,7 +302,7 @@ pub fn eval(ast: Vec<Box<AstNode>>) {
     eval_with_scope(ast, &mut scope);
 }
 
-pub fn eval_block_with_scope_ref(
+pub fn eval_block_with_scope(
     ast: &Vec<Box<AstNode>>,
     scope: &mut Scope,
 ) -> Result<Object, SantaError> {
@@ -270,8 +332,7 @@ pub fn eval_with_scope(ast: Vec<Box<AstNode>>, scope: &mut Scope) -> Object {
                 return value;
             }
             Err(e) => {
-                println!("{}", e);
-                return last_answer;
+                Err(e).unwrap()
             }
             Ok(i) => {
                 last_answer = i;
@@ -280,4 +341,24 @@ pub fn eval_with_scope(ast: Vec<Box<AstNode>>, scope: &mut Scope) -> Object {
     }
 
     last_answer
+}
+
+
+
+pub fn eval_with_scope_err(ast: Vec<Box<AstNode>>, scope: &mut Scope) -> Result<Object, SantaError> {
+    let mut last_answer = Object::None;
+    for node in ast {
+        match eval_node(node.as_ref(), scope) {
+            Err(SantaError::ReturnException { value }) => {
+                return Ok(value);
+            }
+            Err(e) => {
+                return Err(e);
+            }
+            Ok(i) => {
+                last_answer = i;
+            }
+        };
+    }
+    Ok(last_answer)
 }

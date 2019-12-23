@@ -1,9 +1,9 @@
 use crate::error::SantaError;
-use crate::eval::{eval_block_with_scope_ref, Scope};
+use crate::eval::{eval_block_with_scope, Scope};
 use crate::function::Function::{Builtin, User};
 use crate::object::Object;
 use crate::parser::AstNode;
-use failure::_core::fmt::{Debug, Error, Formatter};
+use std::fmt::{Debug, Formatter, Error};
 
 /// An ArgumentList is a a struct holding information about
 /// what parameters a function wants.
@@ -16,6 +16,7 @@ impl ParameterList {
     pub fn new(positional: Vec<String>) -> Self {
         Self { positional }
     }
+    pub fn empty() -> Self {Self { positional: vec![]}}
 }
 
 /// A ParameterList is a struct which are the parameters
@@ -33,7 +34,7 @@ impl ArgumentList {
 
 #[derive(Clone)]
 pub enum Function {
-    Builtin(ParameterList, fn(&mut Scope) -> Object),
+    Builtin(ParameterList, fn(&mut Scope) -> Result<Object, SantaError>),
     User(ParameterList, Vec<Box<AstNode>>),
 }
 
@@ -79,12 +80,13 @@ impl Function {
 
         match self {
             Self::Builtin(params, b) => {
-                scope.load_arglist(argumentlist, params.clone());
-                Ok(b(&mut scope))
+                scope.load_arglist(argumentlist, params.clone())?;
+                b(&mut scope)
             }
             Self::User(params, ast) => {
-                scope.load_arglist(argumentlist, params.clone());
-                eval_block_with_scope_ref(&ast, &mut scope)
+                scope.load_arglist(argumentlist, params.clone())?;
+                let a = eval_block_with_scope(&ast, &mut scope);
+                a
             }
         }
     }

@@ -3,6 +3,8 @@ use crate::function::{ArgumentList, Function};
 use std::fmt::{Display, Error, Formatter};
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
+use std::rc::Rc;
+use std::cell::RefCell;
 
 #[derive(Debug, Clone)]
 pub enum Object {
@@ -11,8 +13,8 @@ pub enum Object {
     String(String),
     Function(Function),
     Boolean(bool),
-    List(Vec<Object>),
-    Map(HashMap<Object, Object>),
+    List(Rc<RefCell<Vec<Object>>>),
+    Map(Rc<RefCell<HashMap<Object, Object>>>),
     None,
 }
 
@@ -56,8 +58,12 @@ impl Display for Object {
             Self::None => write!(f, "None"),
             Self::Function(func) => write!(f, "{:?}", func),
             Self::Boolean(i) => write!(f, "{}", i),
-            Self::List(list) => write!(f, "{:?}", list),
-            Self::Map(map) => write!(f, "{:?}", map),
+            Self::List(list) => write!(f, "{:?}", list.borrow().iter().map(|i| {
+                format!("{}", i)
+            }).collect::<Vec<String>>()),
+            Self::Map(map) => write!(f, "{:?}", map.borrow().iter().map(|(i, j)| {
+                format!("{}:{}", i, j)
+            }).collect::<Vec<String>>()),
 
         }
     }
@@ -85,7 +91,13 @@ impl Object {
             (Self::Boolean(i), other) => Self::Integer(*i as i64).add(other),
             (other, Self::Boolean(i)) => other.add(&Self::Integer(*i as i64)),
 
+            (Self::List(lst), Self::List(other)) => {
+                lst.borrow_mut().extend(other.borrow().iter().cloned());
+                Ok(Self::List(lst.clone()))
+            },
+
             (Self::String(string), other) => Ok(Self::String(format!("{}{}", string, other))),
+            (other, Self::String(string)) => Ok(Self::String(format!("{}{}", string, other))),
 
             _ => Err(SantaError::InvalidOperationError {
                 cause: format!("addition between {:?} and {:?} not supported", self, other),
@@ -127,6 +139,11 @@ impl Object {
             (other, Self::Boolean(i)) => other.multiply(&Self::Integer(*i as i64)),
 
             (Self::String(string), Self::Integer(i)) => Ok(Self::String(string.repeat(*i as usize))),
+            (Self::List(lst), Self::Integer(i)) => {
+                Ok(Self::List(Rc::new(RefCell::new(
+                        lst.borrow().iter().cloned().cycle().take(lst.borrow().len() * *i as usize).collect()
+                ))))
+            },
 
             _ => Err(SantaError::InvalidOperationError {
                 cause: format!(
@@ -312,12 +329,12 @@ impl Object {
     pub fn index(&self, other: &Object) -> Result<Object, SantaError> {
         match (self, other) {
             (Self::String(i), Self::Integer(j)) => Ok(Self::String(i.chars().nth(*j as usize).ok_or(SantaError::IndexOutOfBounds)?.to_string())),
-            (Self::List(i), Self::Integer(j)) => Ok(i.get(*j as usize).ok_or(SantaError::IndexOutOfBounds)?.clone()),
+            (Self::List(i), Self::Integer(j)) => Ok(i.borrow().get(*j as usize).ok_or(SantaError::IndexOutOfBounds)?.clone()),
 
-            (Self::Map(i), j) => Ok(i.get(j).ok_or(SantaError::KeyError)?.clone()),
+            (Self::Map(i), j) => Ok(i.borrow().get(j).ok_or(SantaError::KeyError)?.clone()),
 
 
-            // Blanked impl for booleans to work as integers
+            // Blanket impl for booleans to work as integers
             (i, Self::Boolean(j)) => i.index(&Self::Integer(*j as i64)),
 
             _ => Err(SantaError::InvalidOperationError {
@@ -328,4 +345,40 @@ impl Object {
             }),
         }
     }
+
+    pub fn setindex(&self, other: &Object, value: &Object) -> Result<(), SantaError> {
+        match (self, other) {
+            (Self::List(i), Self::Integer(j)) => {
+                if *j as usize >= i.borrow().len() {
+                    return Err(SantaError::IndexOutOfBounds);
+                }
+
+                i.borrow_mut()[*j as usize] = value.clone();
+
+                Ok(())
+            },
+
+            (Self::Map(i), j) => {
+                i.borrow_mut().insert(j.clone(), value.clone());
+
+                Ok(())
+            },
+
+
+            // Blanket impl for booleans to work as integers
+            (i, Self::Boolean(j)) => i.setindex(&Self::Integer(*j as i64), value),
+
+            _ => Err(SantaError::InvalidOperationError {
+                cause: format!(
+                    "indexing {:?} with {:?} not supported",
+                    self, other
+                ),
+            }),
+        }
+    }
+}
+
+
+pub fn vec_to_list(values: Vec<Object>) -> Object {
+    Object::List(Rc::new(RefCell::new(values)))
 }

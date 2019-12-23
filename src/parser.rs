@@ -3,6 +3,7 @@ use crate::function::ParameterList;
 use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive;
+use std::process::exit;
 
 #[derive(pest_derive::Parser)]
 #[grammar = "grammar.pest"]
@@ -60,7 +61,7 @@ pub enum AstNode {
     IfStatement {
         condition: Box<AstNode>,
         code: Vec<Box<AstNode>>,
-        elsecode: Vec<Box<AstNode>>,
+        elsecode: Option<Vec<Box<AstNode>>>,
     },
     WhileLoop {
         condition: Box<AstNode>,
@@ -70,6 +71,7 @@ pub enum AstNode {
     Assignment {
         name: Box<AstNode>,
         expression: Box<AstNode>,
+        indexes: Vec<Box<AstNode>>,
     },
     Functioncall {
         value: Box<AstNode>,
@@ -120,6 +122,16 @@ fn boolean_to_ast(pair: Pair<Rule>) -> Result<Box<AstNode>, SantaError> {
 
 fn name_to_ast(pair: Pair<Rule>) -> Result<Box<AstNode>, SantaError> {
     Ok(AstNode::Name(pair.as_str().into()).boxed())
+}
+
+fn vararg_to_ast(pair: Pair<Rule>) -> Result<Box<AstNode>, SantaError> {
+    Ok(AstNode::Name(
+        String::from("*") + pair
+            .into_inner()
+            .next().ok_or(SantaError::ParseTreeError { cause: "Couldn't parse".into()})?
+            .as_str()
+            .into()
+    ).boxed())
 }
 
 fn string_to_ast(pair: Pair<Rule>) -> Result<Box<AstNode>, SantaError> {
@@ -179,9 +191,12 @@ fn ifstatement_to_ast(pair: Pair<Rule>) -> Result<Box<AstNode>, SantaError> {
         cause: "Couldn't parse".into(),
     })?)?;
 
-    let else_block = block_to_ast(inner_pair.next().ok_or(SantaError::ParseTreeError {
-        cause: "Couldn't parse".into(),
-    })?)?;
+    let else_block;
+    if let Some(next) = inner_pair.next() {
+        else_block = Some(block_to_ast(next)?);
+    } else {
+        else_block = None;
+    }
 
     Ok(Box::new(AstNode::IfStatement {
         condition,
@@ -280,7 +295,15 @@ fn parameterlist_to_ast(pair: Pair<Rule>) -> Result<Vec<Box<AstNode>>, SantaErro
     let mut result = vec![];
 
     for param in pair.into_inner() {
-        result.push(name_to_ast(param)?)
+        match param.as_rule() {
+            Rule::name => {
+                result.push(name_to_ast(param)?)
+            }
+            Rule::vararg => {
+                result.push(vararg_to_ast(param)?);
+            }
+            _ => unreachable!()
+        }
     }
 
     Ok(result)
@@ -311,27 +334,31 @@ fn atomexpr_to_ast(pair: Pair<Rule>) -> Result<Box<AstNode>, SantaError> {
     let mut innerpair = pair.into_inner();
     let atom = atom_to_ast(innerpair.next().ok_or(SantaError::ParseTreeError {
         cause: "Couldn't parse".into(),
-    })?);
+    })?)?;
 
-    match innerpair.next() {
-        Some(i) => match i.as_rule() {
-            Rule::functioncall => Ok(Box::new(AstNode::Functioncall {
-                value: atom?,
+    let mut res = atom;
+    while let Some(i) = innerpair.next(){
+        res = match i.as_rule() {
+            Rule::functioncall => Box::new(AstNode::Functioncall {
+                value: res,
                 args: argumentlist_to_ast(i.into_inner().next())?,
-            })),
-            Rule::index => Ok(Box::new(AstNode::Expression(
+            }),
+            Rule::index => Box::new(AstNode::Expression(
                 Operator::Binary {
                     operator: BinaryOperator::Index,
-                    lhs: atom?,
+                    lhs: res,
                     rhs: index_to_ast(i.into_inner().next().ok_or(SantaError::ParseTreeError {
                         cause: "Couldn't parse".into(),
                     })?)?
                 }
-            ))),
-            _ => atom,
-        },
-        _ => atom,
-    }
+            )),
+            _ => return Err(SantaError::ParseTreeError {
+                cause: "Couldn't parse".into(),
+            }),
+        }
+    };
+
+    Ok(res)
 }
 
 fn factor_to_ast(pair: Pair<Rule>) -> Result<Box<AstNode>, SantaError> {
@@ -454,18 +481,34 @@ fn statement_to_ast(pair: Pair<Rule>) -> Result<Box<AstNode>, SantaError> {
     let r = pair.as_rule();
     match r {
         Rule::assignment => {
-            let mut pair = pair.into_inner();
-            let name = pair.next().ok_or(SantaError::ParseTreeError {
+            let mut inner_pair = pair.into_inner();
+            let name = inner_pair.next().ok_or(SantaError::ParseTreeError {
                 cause: "Couldn't parse".into(),
             })?;
 
-            let expression = pair.next().ok_or(SantaError::ParseTreeError {
-                cause: "Couldn't parse".into(),
-            })?;
+            let mut indexes = vec![];
+
+            let next_pair = loop {
+                let next_pair = inner_pair.next().ok_or(SantaError::ParseTreeError {
+                    cause: "Couldn't parse".into(),
+                })?;
+
+                if next_pair.as_rule() != Rule::index {
+                    break next_pair;
+                }
+
+                indexes.push(index_to_ast(next_pair.into_inner().next().ok_or(SantaError::ParseTreeError {
+                    cause: "Couldn't parse".into(),
+                })?)?);
+            };
+
+
+            let expression = next_pair;
 
             Ok(AstNode::Assignment {
                 name: name_to_ast(name)?,
                 expression: comparison_to_ast(expression)?,
+                indexes
             }
             .boxed())
         }
@@ -538,7 +581,7 @@ pub fn parse_string_or_panic(input: &str) -> Vec<Box<AstNode>> {
                 _ => println!("{}", e),
             };
 
-            panic!()
+            exit(1);
         }
     }
 }

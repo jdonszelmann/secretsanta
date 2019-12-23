@@ -2,7 +2,7 @@
 #![allow(clippy::boxed_local)]
 #![allow(clippy::ptr_arg)]
 
-use crate::manual::{get_manual_id, run_manual, set_manual_id};
+use crate::manual::{get_manual_id, run_manual, set_manual_id, MANUAL_ID};
 use crate::parser::parse_string_or_panic;
 use clap::{App, AppSettings, Arg, SubCommand};
 use std::fs;
@@ -19,13 +19,14 @@ mod database;
 fn main() {
     get_manual_id();
 
+    let version = format!("1.2.{}", unsafe {MANUAL_ID});
+
     let matches = App::new("Santa Programming Language")
-        .version("1.0.0")
+        .version(version.as_str())
         .author("Santa <noreply@santa.northpole>")
         .about(
-            "The santa programming system \n\nThis system is used internally at the north \
-             pole Santa base for the indexing of the naughty and nice \
-             list.",
+            "The santa programming system \n\nThis system is used internally at Santa's north \
+             pole base for the indexing of the naughty and nice list.",
         )
         .setting(AppSettings::ArgRequiredElseHelp)
         .subcommand(
@@ -65,12 +66,15 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use crate::eval::{eval_node, eval_with_scope, Scope};
+    use crate::eval::{eval_node, eval_with_scope, Scope, eval_with_scope_err};
     use crate::function::{Function, ParameterList};
     use crate::object::Object;
     use crate::parser::AstNode::{Assignment, Expression, Integer, Name};
     use crate::parser::{parse_string_or_panic, BinaryOperator, Operator, UnaryOperator};
     use std::collections::HashMap;
+    use std::rc::Rc;
+    use std::cell::RefCell;
+    use crate::error::SantaError;
 
     #[test]
     fn test_simple_1() {
@@ -80,7 +84,8 @@ mod tests {
             ast,
             vec![Box::new(Assignment {
                 name: Box::new(Name("a".into())),
-                expression: Box::new(Integer(3))
+                expression: Box::new(Integer(3)),
+                indexes: vec![]
             })]
         );
 
@@ -106,7 +111,8 @@ mod tests {
                     operator: BinaryOperator::Add,
                     lhs: Box::new(Integer(3)),
                     rhs: Box::new(Integer(5)),
-                }))
+                })),
+                indexes: vec![]
             })]
         );
 
@@ -132,7 +138,8 @@ mod tests {
                     operator: BinaryOperator::Subtract,
                     lhs: Box::new(Integer(3)),
                     rhs: Box::new(Integer(5)),
-                }))
+                })),
+                indexes: vec![]
             })]
         );
 
@@ -158,7 +165,8 @@ mod tests {
                     operator: BinaryOperator::Multiply,
                     lhs: Box::new(Integer(3)),
                     rhs: Box::new(Integer(5)),
-                }))
+                })),
+                indexes: vec![]
             })]
         );
 
@@ -184,7 +192,8 @@ mod tests {
                     operator: BinaryOperator::Divide,
                     lhs: Box::new(Integer(3)),
                     rhs: Box::new(Integer(5)),
-                }))
+                })),
+                indexes: vec![]
             })]
         );
 
@@ -212,7 +221,8 @@ mod tests {
                 expression: Box::new(Expression(Operator::Unary {
                     operator: UnaryOperator::Negate,
                     expr: Box::new(Integer(3)),
-                }))
+                })),
+                indexes: vec![]
             })]
         );
 
@@ -242,7 +252,8 @@ mod tests {
                         lhs: Box::new(Integer(4)),
                         rhs: Box::new(Integer(2)),
                     })),
-                }))
+                })),
+                indexes: vec![]
             })]
         );
 
@@ -272,7 +283,8 @@ mod tests {
                         lhs: Box::new(Integer(3)),
                         rhs: Box::new(Integer(4)),
                     })),
-                }))
+                })),
+                indexes: vec![]
             })]
         );
 
@@ -345,8 +357,8 @@ mod tests {
         // create a function called a
         scope.set_variable(
             "a".into(),
-            Object::Function(Function::Builtin(ParameterList::new(vec![]), |scope| {
-                Object::Integer(10)
+            Object::Function(Function::Builtin(ParameterList::new(vec![]), |_| {
+                Ok(Object::Integer(10))
             })),
         );
 
@@ -374,8 +386,8 @@ mod tests {
             Object::Function(Function::Builtin(
                 ParameterList::new(vec!["x".into()]),
                 |scope| match scope.get_variable(&"x".into()) {
-                    Some(i) => i,
-                    None => Object::None,
+                    Some(i) => Ok(i),
+                    None => Ok(Object::None),
                 },
             )),
         );
@@ -485,6 +497,27 @@ a(3);
             }
             _ => panic!(),
         }
+    }
+
+    #[test]
+    fn test_function_5() {
+        let ast = parse_string_or_panic(
+            "
+
+x = 5;
+function a () {
+    return x + 1;
+}
+
+
+assert(a(), 6);
+",
+        );
+
+        let mut scope = Scope::new();
+
+        assert_eq!(eval_with_scope_err(ast, &mut scope), Ok(Object::None));
+
     }
 
     #[test]
@@ -890,12 +923,12 @@ a = [1, 2, 3, 4];
         let mut scope = Scope::new();
         eval_with_scope(ast, &mut scope);
 
-        assert_eq!(scope.get_variable(&"a".into()), Some(Object::List(vec![
+        assert_eq!(scope.get_variable(&"a".into()), Some(Object::List(Rc::new(RefCell::new(vec![
             Object::Integer(1),
             Object::Integer(2),
             Object::Integer(3),
             Object::Integer(4),
-        ])));
+        ])))));
     }
 
     #[test]
@@ -910,12 +943,12 @@ a = [1, 2, 3, 4];
         let mut scope = Scope::new();
         eval_with_scope(ast, &mut scope);
 
-        assert_ne!(scope.get_variable(&"a".into()), Some(Object::List(vec![
+        assert_ne!(scope.get_variable(&"a".into()), Some(Object::List(Rc::new(RefCell::new(vec![
             Object::Integer(1),
             Object::Integer(2),
             Object::Integer(4),
             Object::Integer(4),
-        ])));
+        ])))));
     }
 
     #[test]
@@ -934,6 +967,103 @@ a = [1, 2, 3, 4][2];
     }
 
     #[test]
+    fn test_list_4() {
+        let ast = parse_string_or_panic(
+            "
+a = [1, 2,] + [3,] + [4];
+
+            ",
+        );
+
+        let mut scope = Scope::new();
+        eval_with_scope(ast, &mut scope);
+
+        assert_eq!(scope.get_variable(&"a".into()), Some(Object::List(Rc::new(RefCell::new(vec![
+            Object::Integer(1),
+            Object::Integer(2),
+            Object::Integer(3),
+            Object::Integer(4),
+        ])))));
+    }
+
+    #[test]
+    fn test_list_5() {
+        let ast = parse_string_or_panic(
+            "
+a = [1, 2,] * 3;
+
+            ",
+        );
+
+        let mut scope = Scope::new();
+        eval_with_scope(ast, &mut scope);
+
+        assert_eq!(scope.get_variable(&"a".into()), Some(Object::List(Rc::new(RefCell::new(vec![
+            Object::Integer(1),
+            Object::Integer(2),
+            Object::Integer(1),
+            Object::Integer(2),
+            Object::Integer(1),
+            Object::Integer(2),
+        ])))));
+    }
+
+    #[test]
+    fn test_list_6() {
+        let ast = parse_string_or_panic(
+            "
+a = [1, 2,];
+a[1] = 3;
+
+            ",
+        );
+
+        let mut scope = Scope::new();
+        eval_with_scope(ast, &mut scope);
+
+        assert_eq!(scope.get_variable(&"a".into()), Some(Object::List(Rc::new(RefCell::new(vec![
+            Object::Integer(1),
+            Object::Integer(3),
+        ])))));
+    }
+
+    #[test]
+    fn test_list_7() {
+        let ast = parse_string_or_panic(
+            "
+a = [[1,2]];
+a[0][1] = 3;
+
+            ",
+        );
+
+        let mut scope = Scope::new();
+        eval_with_scope(ast, &mut scope);
+
+        assert_eq!(scope.get_variable(&"a".into()), Some(Object::List(Rc::new(RefCell::new(vec![
+            Object::List(Rc::new(RefCell::new(vec![
+                Object::Integer(1),
+                Object::Integer(3),
+            ])))
+        ])))));
+    }
+
+    #[test]
+    fn test_list_8() {
+        let ast = parse_string_or_panic(
+            "
+a = [[1,2]];
+b = a[0][1];
+            ",
+        );
+
+        let mut scope = Scope::new();
+        eval_with_scope(ast, &mut scope);
+
+        assert_eq!(scope.get_variable(&"b".into()), Some(Object::Integer(2)))
+    }
+
+    #[test]
     fn test_map_1() {
         let ast = parse_string_or_panic(
             "
@@ -949,7 +1079,7 @@ a = {1: 2, 3: 4, 5: 6};
         map.insert(Object::Integer(1), Object::Integer(2));
         map.insert(Object::Integer(3), Object::Integer(4));
         map.insert(Object::Integer(5), Object::Integer(6));
-        assert_eq!(scope.get_variable(&"a".into()), Some(Object::Map(map)));
+        assert_eq!(scope.get_variable(&"a".into()), Some(Object::Map(Rc::new(RefCell::new(map)))));
     }
 
     #[test]
@@ -966,5 +1096,219 @@ a = {1: 2, 3: 4, 5: 6}[5];
 
 
         assert_eq!(scope.get_variable(&"a".into()), Some(Object::Integer(6)));
+    }
+
+    #[test]
+    fn test_map_3() {
+        let ast = parse_string_or_panic(
+            "
+a = {1: 2, 3: 4, 5: 6};
+a[3] = 5;
+a = a[3];
+
+            ",
+        );
+
+        let mut scope = Scope::new();
+        eval_with_scope(ast, &mut scope);
+
+
+        assert_eq!(scope.get_variable(&"a".into()), Some(Object::Integer(5)));
+    }
+
+    #[test]
+    fn test_if_4() {
+        let ast = parse_string_or_panic(
+            "
+a = 5;
+b = 2;
+
+if a > b {
+    print(1);
+}
+            ",
+        );
+
+        let mut scope = Scope::new();
+        eval_with_scope(ast, &mut scope);
+    }
+
+    #[test]
+    fn test_vararg_1() {
+        let ast = parse_string_or_panic(
+            "
+function a(*x) {
+    assert(len(x)==1);
+}
+
+a(5);
+            ",
+        );
+
+        let mut scope = Scope::new();
+        assert_eq!(eval_with_scope(ast, &mut scope), Object::None);
+    }
+
+    #[test]
+    fn test_vararg_2() {
+        let ast = parse_string_or_panic(
+            "
+function a(*x) {
+    assert(len(x)==2);
+}
+
+a(5, 6);
+            ",
+        );
+
+        let mut scope = Scope::new();
+        assert_eq!(eval_with_scope(ast, &mut scope), Object::None);
+    }
+
+    #[test]
+    fn test_vararg_3() {
+        let ast = parse_string_or_panic(
+            "
+function a(y, *x) {
+    assert(len(x)==0);
+}
+
+a(5);
+            ",
+        );
+
+        let mut scope = Scope::new();
+        assert_eq!(eval_with_scope(ast, &mut scope), Object::None);
+    }
+
+
+    #[test]
+    fn test_vararg_4() {
+        let ast = parse_string_or_panic(
+            "
+function a(x) {
+}
+
+a(5, 6, 7);
+            ",
+        );
+
+        let mut scope = Scope::new();
+        assert_eq!(eval_with_scope_err(ast, &mut scope), Err(SantaError::InvalidOperationError {cause: "Too many arguments for function".into()}));
+    }
+
+
+    #[test]
+    fn test_vararg_5() {
+        let ast = parse_string_or_panic(
+            "
+function a(x, z) {
+}
+
+a(5);
+            ",
+        );
+
+        let mut scope = Scope::new();
+        assert_eq!(eval_with_scope_err(ast, &mut scope), Err(SantaError::InvalidOperationError {cause: "Not enough arguments for function".into()}));
+    }
+
+
+    #[test]
+    fn test_vararg_6() {
+        let ast = parse_string_or_panic(
+            "
+function a(x, y, *z) {
+}
+
+a(5);
+            ",
+        );
+
+        let mut scope = Scope::new();
+        assert_eq!(eval_with_scope_err(ast, &mut scope), Err(SantaError::InvalidOperationError {cause: "Not enough arguments for function".into()}));
+    }
+
+    #[test]
+    fn test_assert_1() {
+        let ast = parse_string_or_panic(
+            "
+assert(false);
+            ",
+        );
+
+        let mut scope = Scope::new();
+        assert_eq!(eval_with_scope_err(ast, &mut scope), Err(SantaError::AssertionError));
+    }
+
+    #[test]
+    fn test_vararg_7() {
+        let ast = parse_string_or_panic(
+            "
+print(1,2,3);
+            ",
+        );
+
+        let mut scope = Scope::new();
+        assert_eq!(eval_with_scope_err(ast, &mut scope), Ok(Object::None));
+    }
+
+    #[test]
+    fn test_manual_1() {
+        let ast = parse_string_or_panic(
+            "
+function sum(*values) {
+    length = len(values);
+    total = 0;
+    index = 0;
+
+    while index < length {
+        total = total + values[index];
+        index = index + 1;
+    }
+
+    return total;
+}
+
+assert(sum(1,2) == 3);
+assert(sum(1,2,3) == 6);
+assert(sum() == 0);
+            ",
+        );
+
+        let mut scope = Scope::new();
+        assert_eq!(eval_with_scope_err(ast, &mut scope), Ok(Object::None));
+    }
+
+    #[test]
+    fn test_manual_2() {
+        let ast = parse_string_or_panic(
+            "
+a = function(x) {
+    return x + 1;
+}
+
+assert(a(3) == 4);
+            ",
+        );
+
+        let mut scope = Scope::new();
+        assert_eq!(eval_with_scope_err(ast, &mut scope), Ok(Object::None));
+    }
+
+    #[test]
+    fn test_manual_3() {
+        let ast = parse_string_or_panic(
+            "
+function a(x) {
+    return x + 1;
+}
+
+assert(a(3) == 4);
+            ",
+        );
+
+        let mut scope = Scope::new();
+        assert_eq!(eval_with_scope_err(ast, &mut scope), Ok(Object::None));
     }
 }

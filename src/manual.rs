@@ -10,6 +10,16 @@ pub static mut MANUAL_ID: usize = 0;
 const MANUAL_MAIN_FILE: &'static str = "main.md";
 const MANUAL_DIR: &'static str = ".manual";
 
+pub const NAME: &'static str = "Tim Anema";
+
+pub const BASICS: usize = 0;
+pub const CONDITIONALS: usize = 1;
+pub const LOOPS: usize = 2;
+pub const DATABASES: usize = 3;
+pub const DATABASES_TEST2: usize = 4;
+pub const DATABASES_TEST3: usize = 5;
+pub const FUNCTIONS: usize = 6;
+
 fn get_manual_dir() -> PathBuf {
     let executable_file = current_exe().expect("Couln't find executable directory");
 
@@ -56,7 +66,7 @@ pub fn increment_manual_id() {
     unsafe { MANUAL_ID += 1 };
     generate_manual();
 
-    println!("{}", "Good job! You have advanced to the next version of the Santa programming language. Check your manual!".red());
+    println!("{}", "High Tech! You have advanced to the next version of the Santa programming language. Check your manual!".red());
 }
 
 pub fn set_manual_id(version: usize) {
@@ -93,25 +103,20 @@ fn generate_manual() {
     let mainfile_path = manual_dir.join(MANUAL_MAIN_FILE);
     let mut mainfile = File::create(&mainfile_path).expect("Couldn't create manual file");
 
-    const BASICS: usize = 0;
-    const CONDITIONALS: usize = 1;
-    const LOOPS: usize = 2;
-    const DATABASES: usize = 3;
-    const FUNCTIONS: usize = 4;
 
     let blocks = match unsafe{ MANUAL_ID } {
         i if i >= CONDITIONALS => format!("### Complex expressions
 
 #### Booleans
 
-Booleans can be used in combination with complex expressions (if/while) to create control flow.
+Booleans can be used in combination with high tech complex expressions (if/while) to create control flow.
 
-Booleans can have the value `true` and `false` and will act like the integers `1` and `0` respectively in mathmatical operations.
+Booleans can have the high tech values `true` and `false` and will act like the integers `1` and `0` respectively in mathmatical operations.
 The `-` operator to negate a number (`5` --> `-5`) is used to invert booleans.
 
 #### Comparison
 
-You can compare numbers and other data types using the following operators:
+You can compare numbers and other data types using the following high tech operators:
 
 ```
 a == b;
@@ -123,12 +128,12 @@ a < b;
 ```
 
 You can compare floats and integers together. Watch out for floating point errors! Booleans act as the integers
-0 and 1 under comparison with an integer. Strings can be compared for euqality only.
+0 and 1 under comparison with an integer. Strings can be compared for equality only.
 
 ### Conditionals
 
 Using the comparison operators, you can now build programs that conditionally execute code.
-This is done with an if statement. If statements look like this:
+This is done with an if statement. A high tech example of if statements is given here:
 
 ```
 if a > b {{
@@ -139,14 +144,13 @@ if a > b {{
 
 ```
 
-If statements can work as ternary operators by assigning them to a variable.
+If statements can be used as ternary operators by assigning them to a variable.
 The result of the last statement in the branch of the if statement that is executed
 will be returned.
 
-{loops}
-
-", loops=match i {
-            j if j >= LOOPS => "
+{loops}",
+loops=match i {
+    j if j >= LOOPS => "
 #### Loops
 
 Loop syntax is similar to that of if statements. To use them use the `while` keyword.
@@ -160,22 +164,32 @@ while a < 1000 {
 }
 
 ```
-
 ",
             _ => ""
         }),
         _ => "".into()
     };
 
-    let job = match unsafe { MANUAL_ID } {
-        i if i >= DATABASES => "
 
-You will become our main database engineer. Because you are still new here, we will first test your capabilities.
-Check this manual periodically as it will update with tests.
+    let mut job = String::new();
 
-",
-        _ => "",
-    };
+    if unsafe { MANUAL_ID } >= CONDITIONALS {
+        job.push_str("
+
+E.L.F inc is obliged to tell you that if at any point you find a bug in the high tech language, it's not a bug but a feature and you should simply ignore it.
+Failure to do so will get you personally yeeted out of the company by Santa.
+
+");
+    }
+    if unsafe { MANUAL_ID } >= DATABASES {
+        job.push_str("
+
+When you finish your training, you will become our lead database engineer.
+But first we will test your capabilities a bit.
+Check the Tests section as it will update with your new challenges.
+
+");
+    }
 
     let database = match unsafe{ MANUAL_ID } {
         i if i >= DATABASES => "### Database
@@ -183,24 +197,48 @@ Check this manual periodically as it will update with tests.
 Built into the language is a database. This database is regenerated every time you start a program to
 avoid accidental corruption.
 
-The database has a single table with columns (in order) <'id': int> <'name': string> <'naughty/nice': boolean>'
+To read from the database, you can use the following high tech interface:
 
-To read from the database, you can use the following interface:
+
+#### Get data by column value
 
 ```
-row = 5;
-colum = 10;
-db_get_by_id(\"Tablename\", Column, row);
+db_get(\"colname\", \"colvalue\"); // this would get the first record where colname == colvalue
+```
+
+#### Set data by column value
+
+```
+// this would get the first record where colname == colvalue,
+// and set the column identified by \"newcolname\" to newvalue
+db_set(\"colname\", \"colvalue\", \"newcolname\", \"newvalue\");
+```
+
+#### Get column names
+
+```
+db_columns() // returns a list of column names
 ```
 
 
+#### Get number of records
+
+```
+db_records() // returns an integer counting the number of records in the table
+```
+
+#### Get all records
+
+```
+db_get_all() // returns a list of all records in the table. A record is a list of values.
+```
 ",
         _ => ""
     };
 
     let basics = format!("### Basics
 
-The santa language supports many common syntax patterns such as
+The santa language supports many common high tech syntax patterns such as
 variable assignment, addition (`+`), subtraction (`-`), multiplication (`*`) and division (`/`).
 
 Each statement or expression is terminated with a semicolon (`;`).
@@ -209,11 +247,11 @@ Below is an example of a simple Santa program.
 ```
 a = 3 + 5;
 b = 8;
-print(a + b); // prints 16.
+print(a + b); // prints 16. High tech!
 ```
 
 Suggestion: It's useful to try out examples given in this manual as they improve your understanding of the subject,
-which you will need as our new employee at E.L.F inc.
+which aid you in becoming our new engineer at E.L.F inc.
 
 #### Printing
 
@@ -227,49 +265,189 @@ Any number, under division, will be converted to a float.
 
 #### Comments
 
-Comments can be added to code by prefixing them with a double slash (`//`)
+Comments can be added to code by prefixing them with a double slash (`//`) or by enclosing the code with `/* ... */`
 
+#### Built in functions
+
+##### len
+
+len gets the length of a datatype. This operation is defined for strings, lists and maps.
+
+```
+print(len([1,2,3]));
+print(len(\"High Tech\"));
+```
+
+{assertion}
 #### Datatypes
 
 The datatypes available in the Santa language are:
 
-* String
-{boolean}
-{function}
+* String{boolean}{function}
 * List
 * Map
 * Integer
 * Float
 * None
 
-#### Indexing
+##### Strings
 
-Strings,
+Strings can be created with single or double quotes surrounding any text.
+Strings can be indexed by an integer and return the character at that position. Characters are strings of length 1.
+An object, string or other, can be appended to a string by using the `+` operator.
+
+##### Maps
+
+A Map can be created by using the following syntax: `{{key: value, key: value, ...}}`. Keys can be any type apart from lists and maps themselves as they are mutable.
+Indexing a map with a key returns it's value.
+
+example:
+
+```
+a = {{\"a\":3, 4:\"x\"}};
+
+print(a[\"a\"]);
+
+```
+
+##### Lists
+
+A List is made using the following syntax: `[1,2,3,4]`. Indexing a List with an integer index yeets back the item at this index.
+Lists can be concatenated using the `+` operator and repeated using the `*` operator.
+
 
 ",
-        boolean = if unsafe { MANUAL_ID } >= CONDITIONALS {"* Boolean"} else {""},
-        function = if unsafe { MANUAL_ID } >= FUNCTIONS {"* Function"} else {""},
+        boolean = if unsafe { MANUAL_ID } >= CONDITIONALS {"\n* Boolean"} else {""},
+        function = if unsafe { MANUAL_ID } >= FUNCTIONS {"\n* Function"} else {""},
+        assertion = if unsafe {MANUAL_ID} >= DATABASES_TEST2 {"
+##### assert
+
+The Santa language includes a high tech testing framework by including the `assert` function.
+The assert function requires one boolean parameter, and the program is exited with an AssertionError
+if this value is false.
+
+```
+
+assert(1 == 1); // passes
+assert(1 == 2); // fails
+
+```
+
+"} else {""},
     );
 
     let functions = match unsafe { MANUAL_ID } {
         i if i >= FUNCTIONS => {
             "### Functions
 
+The santa language pioneers a high tech feature it calls \"functions\".
+You make a function using the `function` keyword:
+
+```
+function a(x) {
+    return x + 1;
+}
+
+assert(a(3) == 4);
+
+```
+
+Alternatively, you can use functions inline like this:
+
+```
+a = function(x) {
+    return x + 1;
+}
+
+assert(a(3) == 4);
+```
+
+A variable number of parameters can be specified by prefixing the last parameter with a `*` like this:
+
+```
+
+function sum(*values) {
+    length = len(values);
+    total = 0;
+    index = 0;
+
+    while index < length {
+        total = total + values[index];
+        index = index + 1;
+    }
+
+    return total;
+}
+
+assert(sum(1,2) == 3);
+assert(sum(1,2,3) == 6);
+assert(sum() == 0);
+
+```
 
 "
         }
         _ => "",
     };
 
+
+    let mut tests = String::new();
+
+    if unsafe {MANUAL_ID} >= DATABASES {
+        tests.push_str("
+## Tests
+
+In this section, we will give you some tests. When you completed them all you will be accepted as our new database engineer at E.L.F inc.
+
+### Test 1: The naughty ones
+
+Find the number of naughty people in santa's database. Print this value.
+
+");
+
+    };
+    if unsafe {MANUAL_ID} >= DATABASES_TEST2 {
+        tests.push_str("
+
+### Test 2: Test your tests!
+
+Assert that the answer to the previous test was 12 with the assert keyword.
+
+");
+    }
+    if unsafe {MANUAL_ID} >= DATABASES_TEST3 {
+        tests.push_str("
+
+### Test 3: Who's the naughty one here!
+
+As our new employee, Santa is prepared to pardon the numerous major crimes you committed
+(eg. saying High Tech more than 5 times a  week).
+
+Change your own status in the database from naughty to nice.
+
+");
+    }
+    if unsafe {MANUAL_ID} >= FUNCTIONS {
+        tests.push_str("
+
+### Test 4: Faking the tests Volkswagen style.
+
+With your new knowledge of functions, orverwrite the built-in assert function.
+whenever the built-in `TEST` variable is set to true, any assertion passes.
+Otherwise call the original assert function.
+
+");
+    }
+
     mainfile.write_all(format!("
 
 # Welcome to the Santa programming language manual version 1.2.{version}
 
 This programming language is the main system used by E.L.F incorporated.
-This system makes lists, checks them twice, and sends them to Santaclaus to see who's naughty or nice, whenever he comes
+This system makes lists, checks them twice, and sends them to Santa Claus to see who's naughty or nice, whenever he comes
 to town.
 
-You - our new employee - will be learning the ins and outs of this language next week. Read this manual very carefully.
+You - our new trainee - will be learning the ins and outs of this language next week. Read this manual very carefully.
 
 {job}
 
@@ -281,6 +459,7 @@ You - our new employee - will be learning the ins and outs of this language next
 {database}
 {functions}
 
+{tests}
 
 ", version=unsafe{MANUAL_ID},
         basics=basics,
@@ -288,6 +467,7 @@ You - our new employee - will be learning the ins and outs of this language next
         job=job,
         database=database,
         functions=functions,
+        tests=tests,
 
     ).as_bytes()).expect("Couldn't write");
 }

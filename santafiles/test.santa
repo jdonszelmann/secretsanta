@@ -1,19 +1,92 @@
 
-a = 3 + 5;
-b = 8;
 
-
-if a > b {
-    print("a greater than b");
-} else {
-    print("a not greater than b");
+if SANTA_VERSION == 0 {
+    a = 3 + 5;
+    b = 8;
+    print(a + b);
+    exit(0);
 }
 
 
-a = 0;
-while a < 1000 {
-    print(a);
-    a = a + 1;
+if SANTA_VERSION == 1 {
+    a = 3 + 5;
+    b = 8;
+
+    if a > b {
+        print("a greater than b");
+    } else {
+        print("a not greater than b");
+    }
+    exit(0);
 }
 
+if SANTA_VERSION == 2 {
+    a = 0;
+    while a < 10 {
+        print(a);
+        a = a + 1;
+    }
+    exit(0);
+}
 
+if SANTA_VERSION < 5 {
+    a = db_get_all();
+    length = len(a);
+
+    index = 0;
+    count = 0;
+
+    while index < length {
+        if a[index][2] == true {
+            count = count + 1;
+        }
+
+        index = index + 1;
+    }
+
+    print(count);
+
+    if SANTA_VERSION == 4 {
+        assert(count == 12);
+    }
+
+    exit(0);
+}
+
+if SANTA_VERSION == 5 {
+    print(db_columns());
+
+    a = db_get_all();
+    length = len(a);
+
+    index = 0;
+
+    while index < length {
+        print(a[index]);
+        index = index + 1;
+    }
+
+
+    db_set("id", 42, "isnaughty", false);
+
+    exit(0);
+}
+
+if SANTA_VERSION == 6 {
+    print(db_columns());
+
+    a = db_get_all();
+    length = len(a);
+
+    index = 0;
+
+    while index < length {
+        print(a[index]);
+        index = index + 1;
+    }
+
+
+    db_set("id", 42, "isnaughty", false);
+
+    exit(0);
+}

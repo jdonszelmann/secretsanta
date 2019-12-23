@@ -1,28 +1,34 @@
 use crate::object::Object;
-use failure::Fail;
+use std::fmt::{Display, Formatter};
+use std::error::Error;
 
-#[derive(Debug, Fail)]
+#[derive(Debug, PartialEq)]
 pub enum SantaError {
-    #[fail(display = "Parser error: {}", cause)]
     ParseError { cause: String },
-
-    #[fail(display = "Error in parse tree construction: {}", cause)]
     ParseTreeError { cause: String },
-
-    #[fail(display = "Operation not supported: {}", cause)]
     InvalidOperationError { cause: String },
-
-    #[fail(display = "Index out of bounds")]
     IndexOutOfBounds,
-
-    #[fail(display = "KeyError, key not found")]
     KeyError,
-
-    #[fail(
-        display = "This exception is raised when a fucntion wants to return.\
-The evaluator will never actually raise this error but will instead return it's value.\
-value: {}",
-        value
-    )]
+    NoDefinitionError,
+    DatabaseError {cause: String},
     ReturnException { value: Object },
+    AssertionError,
+}
+
+impl Error for SantaError {}
+
+impl Display for SantaError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        match self {
+            Self::ReturnException {value} => write!(f, "This exception is raised when a fucntion wants to return. The evaluator will never actually raise this error but will instead return it's value. value: {}", value),
+            Self::InvalidOperationError {cause} => write!(f, "Operation not supported: {}", cause),
+            Self::ParseTreeError {cause} => write!(f, "Error in parse tree construction: {}", cause),
+            Self::ParseError {cause} => write!(f, "Parser error: {}", cause),
+            Self::IndexOutOfBounds => write!(f, "Index out of bounds"),
+            Self::KeyError => write!(f, "KeyError, key not found"),
+            Self::NoDefinitionError => write!(f, "Variable not defined"),
+            Self::DatabaseError {cause} => write!(f, "A database error occured: {}", cause),
+            Self::AssertionError => write!(f, "Assertion failed"),
+        }
+    }
 }

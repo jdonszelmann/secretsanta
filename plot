@@ -17,7 +17,15 @@
 1. read manual about loops
 2. use a while loop
 
-## Version 1.2.4 # database and job
+## Version 1.2.4 # database and job + test 1
 
-## Version 1.2.5 # functions
+1. read about databases
+2. read from database
+3.
+
+## Version 1.2.6 # database test 2
+
+## Version 1.2.7 # database test 3
+
+## Version 1.2.8 # functions
 
