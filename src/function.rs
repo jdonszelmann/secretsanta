@@ -4,6 +4,8 @@ use crate::function::Function::{Builtin, User};
 use crate::object::Object;
 use crate::parser::AstNode;
 use std::fmt::{Debug, Formatter, Error};
+use std::rc::Rc;
+use std::cell::RefCell;
 
 /// An ArgumentList is a a struct holding information about
 /// what parameters a function wants.
@@ -34,15 +36,15 @@ impl ArgumentList {
 
 #[derive(Clone)]
 pub enum Function {
-    Builtin(ParameterList, fn(&mut Scope) -> Result<Object, SantaError>),
-    User(ParameterList, Vec<Box<AstNode>>),
+    Builtin(ParameterList, fn(Rc<RefCell<Scope>>) -> Result<Object, SantaError>),
+    User(ParameterList, Rc<RefCell<Scope>>, Vec<Box<AstNode>>),
 }
 
 impl Debug for Function {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
         match self {
             Builtin(_, b) => write!(f, "Builtin function at {:p}", b),
-            User(args, _) => write!(
+            User(args, _closure,  _) => write!(
                 f,
                 "Function({})",
                 args.positional
@@ -63,8 +65,8 @@ impl PartialEq for Function {
                     false
                 }
             }
-            Self::User(argsu, u) => {
-                if let Self::User(argsou, ou) = other {
+            Self::User(argsu, _closure, u) => {
+                if let Self::User(argsou, _closure, ou) = other {
                     u == ou && argsu == argsou
                 } else {
                     false
@@ -76,16 +78,17 @@ impl PartialEq for Function {
 
 impl Function {
     pub fn call(&self, argumentlist: ArgumentList) -> Result<Object, SantaError> {
-        let mut scope = Scope::new();
 
         match self {
             Self::Builtin(params, b) => {
-                scope.load_arglist(argumentlist, params.clone())?;
-                b(&mut scope)
+                let scope = Scope::new();
+                scope.borrow_mut().load_arglist(argumentlist, params.clone())?;
+                b(scope)
             }
-            Self::User(params, ast) => {
-                scope.load_arglist(argumentlist, params.clone())?;
-                let a = eval_block_with_scope(&ast, &mut scope);
+            Self::User(params, closure, ast) => {
+                let scope = Scope::child(closure.clone());
+                scope.borrow_mut().load_arglist(argumentlist, params.clone())?;
+                let a = eval_block_with_scope(&ast, scope);
                 a
             }
         }

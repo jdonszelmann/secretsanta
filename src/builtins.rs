@@ -6,8 +6,11 @@ use colored::Colorize;
 use crate::error::SantaError;
 use crate::database::{get_db_builtins, ACCESSED_DB};
 use std::process::exit;
+use std::cell::RefCell;
+use std::rc::Rc;
+use crate::networking::get_network_builtins;
 
-fn builtin_print(scope: &mut Scope) -> Result<Object, SantaError> {
+fn builtin_print(scope: Rc<RefCell<Scope>>) -> Result<Object, SantaError> {
     if unsafe { MANUAL_ID } == BASICS {
         println!(
             "{}",
@@ -18,7 +21,7 @@ fn builtin_print(scope: &mut Scope) -> Result<Object, SantaError> {
 
 
 
-    if let Some(Object::List(lst)) = scope.get_variable(&"args".into()) {
+    if let Some(Object::List(lst)) = scope.borrow().get_variable(&"args".into()) {
         for i in lst.borrow().iter() {
 
             if unsafe { MANUAL_ID } == DATABASES && unsafe { ACCESSED_DB }  && i == &Object::Integer(12) {
@@ -42,12 +45,14 @@ fn builtin_print(scope: &mut Scope) -> Result<Object, SantaError> {
     Ok(Object::None)
 }
 
-fn builtin_list_push(scope: &mut Scope) -> Result<Object, SantaError> {
+fn builtin_list_push(scope: Rc<RefCell<Scope>>) -> Result<Object, SantaError> {
     if let Some(Object::List(list)) = scope
-        .get_variable(&"var".into()) {
+        .borrow()
+        .get_variable(&"list".into()) {
 
         list.borrow_mut().push(scope
-            .get_variable(&"var".into()).ok_or(SantaError::InvalidOperationError {cause: "No value found".into()})?)
+            .borrow()
+            .get_variable(&"value".into()).ok_or(SantaError::InvalidOperationError {cause: "No value found".into()})?)
     } else {
         return Err(SantaError::InvalidOperationError {cause: "First parameter to push not a list".into()});
     }
@@ -56,8 +61,9 @@ fn builtin_list_push(scope: &mut Scope) -> Result<Object, SantaError> {
     Ok(Object::None)
 }
 
-fn builtin_len(scope: &mut Scope) -> Result<Object, SantaError> {
+fn builtin_len(scope: Rc<RefCell<Scope>>) -> Result<Object, SantaError> {
     if let Some(obj) = scope
+        .borrow()
         .get_variable(&"value".into()) {
 
         Ok(Object::Integer(match obj {
@@ -71,9 +77,10 @@ fn builtin_len(scope: &mut Scope) -> Result<Object, SantaError> {
     }
 }
 
-fn builtin_assert(scope: &mut Scope) -> Result<Object, SantaError> {
+fn builtin_assert(scope: Rc<RefCell<Scope>>) -> Result<Object, SantaError> {
 
     if let Some(Object::Boolean(b)) = scope
+        .borrow()
         .get_variable(&"arg".into()) {
 
         if b {
@@ -97,9 +104,10 @@ fn builtin_assert(scope: &mut Scope) -> Result<Object, SantaError> {
     }
 }
 
-fn builtin_exit(scope: &mut Scope) -> Result<Object, SantaError> {
+fn builtin_exit(scope: Rc<RefCell<Scope>>) -> Result<Object, SantaError> {
 
     if let Some(Object::Integer(code)) = scope
+        .borrow()
         .get_variable(&"code".into()) {
 
         exit(code as i32);
@@ -143,4 +151,5 @@ pub fn get_builtins(scope: &mut Scope) {
 
 
     get_db_builtins(scope);
+    get_network_builtins(scope);
 }

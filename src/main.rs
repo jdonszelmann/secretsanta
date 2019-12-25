@@ -15,6 +15,7 @@ mod manual;
 mod object;
 mod parser;
 mod database;
+mod networking;
 
 fn main() {
     get_manual_id();
@@ -23,7 +24,7 @@ fn main() {
 
     let matches = App::new("Santa Programming Language")
         .version(version.as_str())
-        .author("Santa <noreply@santa.northpole>")
+        .author("Santa <santa@santa.northpole>")
         .about(
             "The santa programming system \n\nThis system is used internally at Santa's north \
              pole base for the indexing of the naughty and nice list.",
@@ -75,6 +76,7 @@ mod tests {
     use std::rc::Rc;
     use std::cell::RefCell;
     use crate::error::SantaError;
+    use crate::manual::{MANUAL_ID, FUNCTIONS};
 
     #[test]
     fn test_simple_1() {
@@ -89,14 +91,14 @@ mod tests {
             })]
         );
 
-        let mut scope = Scope::new();
+        let scope = Scope::new();
 
         assert_eq!(
-            eval_node(ast.into_iter().next().unwrap().as_ref(), &mut scope).unwrap(),
+            eval_node(ast.into_iter().next().unwrap().as_ref(), scope.clone()).unwrap(),
             Object::Integer(3)
         );
 
-        assert_eq!(scope.get_variable(&"a".into()), Some(Object::Integer(3)));
+        assert_eq!(scope.borrow().get_variable(&"a".into()), Some(Object::Integer(3)));
     }
 
     #[test]
@@ -116,14 +118,14 @@ mod tests {
             })]
         );
 
-        let mut scope = Scope::new();
+        let scope = Scope::new();
 
         assert_eq!(
-            eval_node(ast.into_iter().next().unwrap().as_ref(), &mut scope).unwrap(),
+            eval_node(ast.into_iter().next().unwrap().as_ref(), scope.clone()).unwrap(),
             Object::Integer(8)
         );
 
-        assert_eq!(scope.get_variable(&"a".into()), Some(Object::Integer(8)));
+        assert_eq!(scope.borrow().get_variable(&"a".into()), Some(Object::Integer(8)));
     }
 
     #[test]
@@ -143,14 +145,14 @@ mod tests {
             })]
         );
 
-        let mut scope = Scope::new();
+        let scope = Scope::new();
 
         assert_eq!(
-            eval_node(ast.into_iter().next().unwrap().as_ref(), &mut scope).unwrap(),
+            eval_node(ast.into_iter().next().unwrap().as_ref(), scope.clone()).unwrap(),
             Object::Integer(-2)
         );
 
-        assert_eq!(scope.get_variable(&"a".into()), Some(Object::Integer(-2)));
+        assert_eq!(scope.borrow().get_variable(&"a".into()), Some(Object::Integer(-2)));
     }
 
     #[test]
@@ -170,14 +172,14 @@ mod tests {
             })]
         );
 
-        let mut scope = Scope::new();
+        let scope = Scope::new();
 
         assert_eq!(
-            eval_node(ast.into_iter().next().unwrap().as_ref(), &mut scope).unwrap(),
+            eval_node(ast.into_iter().next().unwrap().as_ref(), scope.clone()).unwrap(),
             Object::Integer(15)
         );
 
-        assert_eq!(scope.get_variable(&"a".into()), Some(Object::Integer(15)));
+        assert_eq!(scope.borrow().get_variable(&"a".into()), Some(Object::Integer(15)));
     }
 
     #[test]
@@ -197,15 +199,15 @@ mod tests {
             })]
         );
 
-        let mut scope = Scope::new();
+        let scope = Scope::new();
 
         assert_eq!(
-            eval_node(ast.into_iter().next().unwrap().as_ref(), &mut scope).unwrap(),
+            eval_node(ast.into_iter().next().unwrap().as_ref(), scope.clone()).unwrap(),
             Object::Float(3.0 / 5.0)
         );
 
         assert_eq!(
-            scope.get_variable(&"a".into()),
+            scope.borrow().get_variable(&"a".into()),
             Some(Object::Float(3.0 / 5.0))
         );
     }
@@ -226,14 +228,14 @@ mod tests {
             })]
         );
 
-        let mut scope = Scope::new();
+        let scope = Scope::new();
 
         assert_eq!(
-            eval_node(ast.into_iter().next().unwrap().as_ref(), &mut scope).unwrap(),
+            eval_node(ast.into_iter().next().unwrap().as_ref(), scope.clone()).unwrap(),
             Object::Integer(-3)
         );
 
-        assert_eq!(scope.get_variable(&"a".into()), Some(Object::Integer(-3)));
+        assert_eq!(scope.borrow().get_variable(&"a".into()), Some(Object::Integer(-3)));
     }
 
     #[test]
@@ -257,14 +259,14 @@ mod tests {
             })]
         );
 
-        let mut scope = Scope::new();
+        let scope = Scope::new();
 
         assert_eq!(
-            eval_node(ast.into_iter().next().unwrap().as_ref(), &mut scope).unwrap(),
+            eval_node(ast.into_iter().next().unwrap().as_ref(), scope.clone()).unwrap(),
             Object::Float(5.0)
         );
 
-        assert_eq!(scope.get_variable(&"a".into()), Some(Object::Float(5.0)));
+        assert_eq!(scope.borrow().get_variable(&"a".into()), Some(Object::Float(5.0)));
     }
 
     #[test]
@@ -288,15 +290,15 @@ mod tests {
             })]
         );
 
-        let mut scope = Scope::new();
+        let scope = Scope::new();
 
         assert_eq!(
-            eval_node(ast.into_iter().next().unwrap().as_ref(), &mut scope).unwrap(),
+            eval_node(ast.into_iter().next().unwrap().as_ref(), scope.clone()).unwrap(),
             Object::Float(7.0 / 2.0)
         );
 
         assert_eq!(
-            scope.get_variable(&"a".into()),
+            scope.borrow().get_variable(&"a".into()),
             Some(Object::Float(7.0 / 2.0))
         );
     }
@@ -305,57 +307,57 @@ mod tests {
     fn test_multiline_1() {
         let ast = parse_string_or_panic("a = 3 + 2;b = a;");
 
-        let mut scope = Scope::new();
+        let scope = Scope::new();
 
         assert_eq!(ast.len(), 2);
 
         for node in ast {
             assert_eq!(
-                eval_node(node.as_ref(), &mut scope).unwrap(),
+                eval_node(node.as_ref(), scope.clone()).unwrap(),
                 Object::Integer(5)
             );
         }
 
-        assert_eq!(scope.get_variable(&"a".into()), Some(Object::Integer(5)));
+        assert_eq!(scope.borrow().get_variable(&"a".into()), Some(Object::Integer(5)));
 
-        assert_eq!(scope.get_variable(&"b".into()), Some(Object::Integer(5)));
+        assert_eq!(scope.borrow().get_variable(&"b".into()), Some(Object::Integer(5)));
     }
 
     #[test]
     fn test_multiline_2() {
         let ast = parse_string_or_panic("a = 3 + 2;b = a + 2;");
 
-        let mut scope = Scope::new();
+        let scope = Scope::new();
 
         assert_eq!(ast.len(), 2);
 
         let mut nodes = ast.into_iter();
         assert_eq!(
-            eval_node(nodes.next().unwrap().as_ref(), &mut scope).unwrap(),
+            eval_node(nodes.next().unwrap().as_ref(), scope.clone()).unwrap(),
             Object::Integer(5)
         );
         assert_eq!(
-            eval_node(nodes.next().unwrap().as_ref(), &mut scope).unwrap(),
+            eval_node(nodes.next().unwrap().as_ref(), scope.clone()).unwrap(),
             Object::Integer(7)
         );
 
-        assert_eq!(scope.get_variable(&"a".into()), Some(Object::Integer(5)));
+        assert_eq!(scope.borrow().get_variable(&"a".into()), Some(Object::Integer(5)));
 
-        assert_eq!(scope.get_variable(&"b".into()), Some(Object::Integer(7)));
+        assert_eq!(scope.borrow().get_variable(&"b".into()), Some(Object::Integer(7)));
     }
 
     #[test]
     fn test_functioncall_1() {
         let ast = parse_string_or_panic("b = a();");
 
-        let mut scope = Scope::new();
+        let scope = Scope::new();
 
         assert_eq!(ast.len(), 1);
 
         let mut nodes = ast.into_iter();
 
         // create a function called a
-        scope.set_variable(
+        scope.borrow_mut().set_variable(
             "a".into(),
             Object::Function(Function::Builtin(ParameterList::new(vec![]), |_| {
                 Ok(Object::Integer(10))
@@ -363,29 +365,29 @@ mod tests {
         );
 
         assert_eq!(
-            eval_node(nodes.next().unwrap().as_ref(), &mut scope).unwrap(),
+            eval_node(nodes.next().unwrap().as_ref(), scope.clone()).unwrap(),
             Object::Integer(10)
         );
 
-        assert_eq!(scope.get_variable(&"b".into()), Some(Object::Integer(10)));
+        assert_eq!(scope.borrow().get_variable(&"b".into()), Some(Object::Integer(10)));
     }
 
     #[test]
     fn test_functioncall_2() {
         let ast = parse_string_or_panic("b = a(3);");
 
-        let mut scope = Scope::new();
+        let scope = Scope::new();
 
         assert_eq!(ast.len(), 1);
 
         let mut nodes = ast.into_iter();
 
         // create a function called a
-        scope.set_variable(
+        scope.borrow_mut().set_variable(
             "a".into(),
             Object::Function(Function::Builtin(
                 ParameterList::new(vec!["x".into()]),
-                |scope| match scope.get_variable(&"x".into()) {
+                |scope| match scope.borrow().get_variable(&"x".into()) {
                     Some(i) => Ok(i),
                     None => Ok(Object::None),
                 },
@@ -393,35 +395,35 @@ mod tests {
         );
 
         assert_eq!(
-            eval_node(nodes.next().unwrap().as_ref(), &mut scope).unwrap(),
+            eval_node(nodes.next().unwrap().as_ref(), scope.clone()).unwrap(),
             Object::Integer(3)
         );
 
-        assert_eq!(scope.get_variable(&"b".into()), Some(Object::Integer(3)));
+        assert_eq!(scope.borrow().get_variable(&"b".into()), Some(Object::Integer(3)));
     }
 
     #[test]
     fn test_function_1() {
-        let ast = parse_string_or_panic("function a () {}");
+        let ast = parse_string_or_panic(
+            "
+function a (x) {
+    return x + 1;
+}",
+        );
 
-        let mut scope = Scope::new();
+        let scope = Scope::new();
 
         assert_eq!(ast.len(), 1);
 
-        let mut nodes = ast.into_iter();
+        eval_with_scope(ast, scope.clone());
 
-        assert_eq!(
-            eval_node(nodes.next().unwrap().as_ref(), &mut scope).unwrap(),
-            Object::Function(Function::User(ParameterList::new(vec![]), vec![]))
-        );
-
-        assert_eq!(
-            scope.get_variable(&"a".into()),
-            Some(Object::Function(Function::User(
-                ParameterList::new(vec![]),
-                vec![]
-            )))
-        );
+        let var = scope.borrow().get_variable(&"a".into());
+        match var {
+            Some(Object::Function(Function::User(x, closure, _))) => {
+                assert_eq!(x.positional, vec![String::from("x")]);
+            }
+            _ => panic!(),
+        }
     }
 
     #[test]
@@ -430,17 +432,21 @@ mod tests {
             "
 function a (x) {
     return x + 1;
-}",
+}
+
+a(3);
+",
         );
 
-        let mut scope = Scope::new();
+        let scope = Scope::new();
 
-        assert_eq!(ast.len(), 1);
+        assert_eq!(ast.len(), 2);
 
-        eval_with_scope(ast, &mut scope);
+        assert_eq!(eval_with_scope(ast, scope.clone()), Object::Integer(4));
 
-        match scope.get_variable(&"a".into()) {
-            Some(Object::Function(Function::User(x, _))) => {
+        let var = scope.borrow().get_variable(&"a".into());
+        match var {
+            Some(Object::Function(Function::User(x, closure, _))) => {
                 assert_eq!(x.positional, vec![String::from("x")]);
             }
             _ => panic!(),
@@ -451,22 +457,23 @@ function a (x) {
     fn test_function_3() {
         let ast = parse_string_or_panic(
             "
-function a (x) {
+a = function (x) {
     return x + 1;
-}
+};
 
 a(3);
 ",
         );
 
-        let mut scope = Scope::new();
+        let scope = Scope::new();
 
         assert_eq!(ast.len(), 2);
 
-        assert_eq!(eval_with_scope(ast, &mut scope), Object::Integer(4));
+        assert_eq!(eval_with_scope(ast, scope.clone()), Object::Integer(4));
 
-        match scope.get_variable(&"a".into()) {
-            Some(Object::Function(Function::User(x, _))) => {
+        let var = scope.borrow().get_variable(&"a".into());
+        match var {
+            Some(Object::Function(Function::User(x, closure, _))) => {
                 assert_eq!(x.positional, vec![String::from("x")]);
             }
             _ => panic!(),
@@ -477,32 +484,6 @@ a(3);
     fn test_function_4() {
         let ast = parse_string_or_panic(
             "
-a = function (x) {
-    return x + 1;
-};
-
-a(3);
-",
-        );
-
-        let mut scope = Scope::new();
-
-        assert_eq!(ast.len(), 2);
-
-        assert_eq!(eval_with_scope(ast, &mut scope), Object::Integer(4));
-
-        match scope.get_variable(&"a".into()) {
-            Some(Object::Function(Function::User(x, _))) => {
-                assert_eq!(x.positional, vec![String::from("x")]);
-            }
-            _ => panic!(),
-        }
-    }
-
-    #[test]
-    fn test_function_5() {
-        let ast = parse_string_or_panic(
-            "
 
 x = 5;
 function a () {
@@ -510,13 +491,13 @@ function a () {
 }
 
 
-assert(a(), 6);
+assert(a() == 6);
 ",
         );
 
-        let mut scope = Scope::new();
+        let scope = Scope::new();
 
-        assert_eq!(eval_with_scope_err(ast, &mut scope), Ok(Object::None));
+        assert_eq!(eval_with_scope_err(ast, scope.clone()), Ok(Object::None));
 
     }
 
@@ -532,8 +513,8 @@ print(x);
 ",
         );
 
-        let mut scope = Scope::new();
-        eval_with_scope(ast, &mut scope);
+        let scope = Scope::new();
+        eval_with_scope(ast, scope.clone());
     }
 
     #[test]
@@ -545,10 +526,10 @@ a = a + 2;
 ",
         );
 
-        let mut scope = Scope::new();
-        assert_eq!(eval_with_scope(ast, &mut scope), Object::Integer(5));
+        let scope = Scope::new();
+        assert_eq!(eval_with_scope(ast, scope.clone()), Object::Integer(5));
 
-        assert_eq!(scope.get_variable(&"a".into()), Some(Object::Integer(5)));
+        assert_eq!(scope.borrow().get_variable(&"a".into()), Some(Object::Integer(5)));
     }
 
     #[test]
@@ -565,12 +546,12 @@ if a {
 ",
         );
 
-        let mut scope = Scope::new();
+        let scope = Scope::new();
         // Should be returned from function
-        assert_eq!(eval_with_scope(ast, &mut scope), Object::Integer(5));
+        assert_eq!(eval_with_scope(ast, scope.clone()), Object::Integer(5));
 
         // But not be in scope
-        assert_eq!(scope.get_variable(&"b".into()), None);
+        assert_eq!(scope.borrow().get_variable(&"b".into()), None);
     }
 
     #[test]
@@ -589,10 +570,10 @@ if a {
 ",
         );
 
-        let mut scope = Scope::new();
-        assert_eq!(eval_with_scope(ast, &mut scope), Object::Integer(5));
+        let scope = Scope::new();
+        assert_eq!(eval_with_scope(ast, scope.clone()), Object::Integer(5));
 
-        assert_eq!(scope.get_variable(&"b".into()), Some(Object::Integer(5)));
+        assert_eq!(scope.borrow().get_variable(&"b".into()), Some(Object::Integer(5)));
     }
 
     #[test]
@@ -611,10 +592,10 @@ if a {
 ",
         );
 
-        let mut scope = Scope::new();
-        assert_eq!(eval_with_scope(ast, &mut scope), Object::Integer(3));
+        let scope = Scope::new();
+        assert_eq!(eval_with_scope(ast, scope.clone()), Object::Integer(3));
 
-        assert_eq!(scope.get_variable(&"b".into()), Some(Object::Integer(3)));
+        assert_eq!(scope.borrow().get_variable(&"b".into()), Some(Object::Integer(3)));
     }
 
     #[test]
@@ -632,10 +613,10 @@ x = if a {
 ",
         );
 
-        let mut scope = Scope::new();
-        assert_eq!(eval_with_scope(ast, &mut scope), Object::Integer(3));
+        let scope = Scope::new();
+        assert_eq!(eval_with_scope(ast, scope.clone()), Object::Integer(3));
 
-        assert_eq!(scope.get_variable(&"x".into()), Some(Object::Integer(3)));
+        assert_eq!(scope.borrow().get_variable(&"x".into()), Some(Object::Integer(3)));
     }
 
     #[test]
@@ -649,15 +630,15 @@ c = a + b;
 ",
         );
 
-        let mut scope = Scope::new();
-        assert_eq!(eval_with_scope(ast, &mut scope), Object::Integer(1));
+        let scope = Scope::new();
+        assert_eq!(eval_with_scope(ast, scope.clone()), Object::Integer(1));
 
-        assert_eq!(scope.get_variable(&"a".into()), Some(Object::Boolean(true)));
+        assert_eq!(scope.borrow().get_variable(&"a".into()), Some(Object::Boolean(true)));
         assert_eq!(
-            scope.get_variable(&"b".into()),
+            scope.borrow().get_variable(&"b".into()),
             Some(Object::Boolean(false))
         );
-        assert_eq!(scope.get_variable(&"c".into()), Some(Object::Integer(1)));
+        assert_eq!(scope.borrow().get_variable(&"c".into()), Some(Object::Integer(1)));
     }
 
     #[test]
@@ -668,10 +649,10 @@ a = 3.14;
 ",
         );
 
-        let mut scope = Scope::new();
-        assert_eq!(eval_with_scope(ast, &mut scope), Object::Float(3.14));
+        let scope = Scope::new();
+        assert_eq!(eval_with_scope(ast, scope.clone()), Object::Float(3.14));
 
-        assert_eq!(scope.get_variable(&"a".into()), Some(Object::Float(3.14)));
+        assert_eq!(scope.borrow().get_variable(&"a".into()), Some(Object::Float(3.14)));
     }
 
     #[test]
@@ -682,10 +663,10 @@ a = 3.1 + 4.9;
 ",
         );
 
-        let mut scope = Scope::new();
-        assert_eq!(eval_with_scope(ast, &mut scope), Object::Float(8.0));
+        let scope = Scope::new();
+        assert_eq!(eval_with_scope(ast, scope.clone()), Object::Float(8.0));
 
-        assert_eq!(scope.get_variable(&"a".into()), Some(Object::Float(8.0)));
+        assert_eq!(scope.borrow().get_variable(&"a".into()), Some(Object::Float(8.0)));
     }
 
     #[test]
@@ -696,10 +677,10 @@ a = 3.2 + 4;
 ",
         );
 
-        let mut scope = Scope::new();
-        assert_eq!(eval_with_scope(ast, &mut scope), Object::Float(7.2));
+        let scope = Scope::new();
+        assert_eq!(eval_with_scope(ast, scope.clone()), Object::Float(7.2));
 
-        assert_eq!(scope.get_variable(&"a".into()), Some(Object::Float(7.2)));
+        assert_eq!(scope.borrow().get_variable(&"a".into()), Some(Object::Float(7.2)));
     }
 
     #[test]
@@ -710,14 +691,14 @@ a = \"test\";
 ",
         );
 
-        let mut scope = Scope::new();
+        let scope = Scope::new();
         assert_eq!(
-            eval_with_scope(ast, &mut scope),
+            eval_with_scope(ast, scope.clone()),
             Object::String("test".into())
         );
 
         assert_eq!(
-            scope.get_variable(&"a".into()),
+            scope.borrow().get_variable(&"a".into()),
             Some(Object::String("test".into()))
         );
     }
@@ -726,96 +707,96 @@ a = \"test\";
     fn test_comparison_1() {
         let ast = parse_string_or_panic("3==5;");
 
-        let mut scope = Scope::new();
-        assert_eq!(eval_with_scope(ast, &mut scope), Object::Boolean(false));
+        let scope = Scope::new();
+        assert_eq!(eval_with_scope(ast, scope), Object::Boolean(false));
     }
 
     #[test]
     fn test_comparison_2() {
         let ast = parse_string_or_panic("3==3;");
 
-        let mut scope = Scope::new();
-        assert_eq!(eval_with_scope(ast, &mut scope), Object::Boolean(true));
+        let scope = Scope::new();
+        assert_eq!(eval_with_scope(ast, scope), Object::Boolean(true));
     }
 
     #[test]
     fn test_comparison_3() {
         let ast = parse_string_or_panic("3==3.0;");
 
-        let mut scope = Scope::new();
-        assert_eq!(eval_with_scope(ast, &mut scope), Object::Boolean(true));
+        let scope = Scope::new();
+        assert_eq!(eval_with_scope(ast, scope), Object::Boolean(true));
     }
 
     #[test]
     fn test_comparison_4() {
         let ast = parse_string_or_panic("3.0==3;");
 
-        let mut scope = Scope::new();
-        assert_eq!(eval_with_scope(ast, &mut scope), Object::Boolean(true));
+        let scope = Scope::new();
+        assert_eq!(eval_with_scope(ast, scope), Object::Boolean(true));
     }
 
     #[test]
     fn test_comparison_5() {
         let ast = parse_string_or_panic("3 > 3;");
 
-        let mut scope = Scope::new();
-        assert_eq!(eval_with_scope(ast, &mut scope), Object::Boolean(false));
+        let scope = Scope::new();
+        assert_eq!(eval_with_scope(ast, scope), Object::Boolean(false));
     }
 
     #[test]
     fn test_comparison_6() {
         let ast = parse_string_or_panic("3 < 3;");
 
-        let mut scope = Scope::new();
-        assert_eq!(eval_with_scope(ast, &mut scope), Object::Boolean(false));
+        let scope = Scope::new();
+        assert_eq!(eval_with_scope(ast, scope), Object::Boolean(false));
     }
 
     #[test]
     fn test_comparison_8() {
         let ast = parse_string_or_panic("3 >= 3;");
 
-        let mut scope = Scope::new();
-        assert_eq!(eval_with_scope(ast, &mut scope), Object::Boolean(true));
+        let scope = Scope::new();
+        assert_eq!(eval_with_scope(ast, scope), Object::Boolean(true));
     }
 
     #[test]
     fn test_comparison_9() {
         let ast = parse_string_or_panic("3 <= 3;");
 
-        let mut scope = Scope::new();
-        assert_eq!(eval_with_scope(ast, &mut scope), Object::Boolean(true));
+        let scope = Scope::new();
+        assert_eq!(eval_with_scope(ast, scope), Object::Boolean(true));
     }
 
     #[test]
     fn test_comparison_10() {
         let ast = parse_string_or_panic("4 > 3;");
 
-        let mut scope = Scope::new();
-        assert_eq!(eval_with_scope(ast, &mut scope), Object::Boolean(true));
+        let scope = Scope::new();
+        assert_eq!(eval_with_scope(ast, scope), Object::Boolean(true));
     }
 
     #[test]
     fn test_comparison_11() {
         let ast = parse_string_or_panic("3 < 4;");
 
-        let mut scope = Scope::new();
-        assert_eq!(eval_with_scope(ast, &mut scope), Object::Boolean(true));
+        let scope = Scope::new();
+        assert_eq!(eval_with_scope(ast, scope), Object::Boolean(true));
     }
 
     #[test]
     fn test_comparison_12() {
         let ast = parse_string_or_panic("3 != 4;");
 
-        let mut scope = Scope::new();
-        assert_eq!(eval_with_scope(ast, &mut scope), Object::Boolean(true));
+        let scope = Scope::new();
+        assert_eq!(eval_with_scope(ast, scope), Object::Boolean(true));
     }
 
     #[test]
     fn test_comparison_13() {
         let ast = parse_string_or_panic("3 != 3;");
 
-        let mut scope = Scope::new();
-        assert_eq!(eval_with_scope(ast, &mut scope), Object::Boolean(false));
+        let scope = Scope::new();
+        assert_eq!(eval_with_scope(ast, scope), Object::Boolean(false));
     }
 
     #[test]
@@ -830,10 +811,10 @@ while a < 10 {
             ",
         );
 
-        let mut scope = Scope::new();
-        eval_with_scope(ast, &mut scope);
+        let scope = Scope::new();
+        eval_with_scope(ast, scope.clone());
 
-        assert_eq!(scope.get_variable(&"a".into()), Some(Object::Integer(10)));
+        assert_eq!(scope.borrow().get_variable(&"a".into()), Some(Object::Integer(10)));
     }
 
     #[test]
@@ -845,10 +826,10 @@ a = \"yeet\" * 4;
             ",
         );
 
-        let mut scope = Scope::new();
-        eval_with_scope(ast, &mut scope);
+        let scope = Scope::new();
+        eval_with_scope(ast, scope.clone());
 
-        assert_eq!(scope.get_variable(&"a".into()), Some(Object::String("yeetyeetyeetyeet".into())));
+        assert_eq!(scope.borrow().get_variable(&"a".into()), Some(Object::String("yeetyeetyeetyeet".into())));
     }
 
     #[test]
@@ -860,10 +841,10 @@ a = \"yeet\" + 4;
             ",
         );
 
-        let mut scope = Scope::new();
-        eval_with_scope(ast, &mut scope);
+        let scope = Scope::new();
+        eval_with_scope(ast, scope.clone());
 
-        assert_eq!(scope.get_variable(&"a".into()), Some(Object::String("yeet4".into())));
+        assert_eq!(scope.borrow().get_variable(&"a".into()), Some(Object::String("yeet4".into())));
     }
 
     #[test]
@@ -875,10 +856,10 @@ a = \"yeet\" + 4.1;
             ",
         );
 
-        let mut scope = Scope::new();
-        eval_with_scope(ast, &mut scope);
+        let scope = Scope::new();
+        eval_with_scope(ast, scope.clone());
 
-        assert_eq!(scope.get_variable(&"a".into()), Some(Object::String("yeet4.1".into())));
+        assert_eq!(scope.borrow().get_variable(&"a".into()), Some(Object::String("yeet4.1".into())));
     }
 
     #[test]
@@ -890,10 +871,10 @@ a = \"yeet\" + \"yeet\";
             ",
         );
 
-        let mut scope = Scope::new();
-        eval_with_scope(ast, &mut scope);
+        let scope = Scope::new();
+        eval_with_scope(ast, scope.clone());
 
-        assert_eq!(scope.get_variable(&"a".into()), Some(Object::String("yeetyeet".into())));
+        assert_eq!(scope.borrow().get_variable(&"a".into()), Some(Object::String("yeetyeet".into())));
     }
 
     #[test]
@@ -905,10 +886,10 @@ a = \"yeet\"[3];
             ",
         );
 
-        let mut scope = Scope::new();
-        eval_with_scope(ast, &mut scope);
+        let scope = Scope::new();
+        eval_with_scope(ast, scope.clone());
 
-        assert_eq!(scope.get_variable(&"a".into()), Some(Object::String("t".into())));
+        assert_eq!(scope.borrow().get_variable(&"a".into()), Some(Object::String("t".into())));
     }
 
     #[test]
@@ -920,10 +901,10 @@ a = [1, 2, 3, 4];
             ",
         );
 
-        let mut scope = Scope::new();
-        eval_with_scope(ast, &mut scope);
+        let scope = Scope::new();
+        eval_with_scope(ast, scope.clone());
 
-        assert_eq!(scope.get_variable(&"a".into()), Some(Object::List(Rc::new(RefCell::new(vec![
+        assert_eq!(scope.borrow().get_variable(&"a".into()), Some(Object::List(Rc::new(RefCell::new(vec![
             Object::Integer(1),
             Object::Integer(2),
             Object::Integer(3),
@@ -940,10 +921,10 @@ a = [1, 2, 3, 4];
             ",
         );
 
-        let mut scope = Scope::new();
-        eval_with_scope(ast, &mut scope);
+        let scope = Scope::new();
+        eval_with_scope(ast, scope.clone());
 
-        assert_ne!(scope.get_variable(&"a".into()), Some(Object::List(Rc::new(RefCell::new(vec![
+        assert_ne!(scope.borrow().get_variable(&"a".into()), Some(Object::List(Rc::new(RefCell::new(vec![
             Object::Integer(1),
             Object::Integer(2),
             Object::Integer(4),
@@ -960,10 +941,10 @@ a = [1, 2, 3, 4][2];
             ",
         );
 
-        let mut scope = Scope::new();
-        eval_with_scope(ast, &mut scope);
+        let scope = Scope::new();
+        eval_with_scope(ast, scope.clone());
 
-        assert_eq!(scope.get_variable(&"a".into()), Some(Object::Integer(3)));
+        assert_eq!(scope.borrow().get_variable(&"a".into()), Some(Object::Integer(3)));
     }
 
     #[test]
@@ -975,10 +956,10 @@ a = [1, 2,] + [3,] + [4];
             ",
         );
 
-        let mut scope = Scope::new();
-        eval_with_scope(ast, &mut scope);
+        let scope = Scope::new();
+        eval_with_scope(ast, scope.clone());
 
-        assert_eq!(scope.get_variable(&"a".into()), Some(Object::List(Rc::new(RefCell::new(vec![
+        assert_eq!(scope.borrow().get_variable(&"a".into()), Some(Object::List(Rc::new(RefCell::new(vec![
             Object::Integer(1),
             Object::Integer(2),
             Object::Integer(3),
@@ -995,10 +976,10 @@ a = [1, 2,] * 3;
             ",
         );
 
-        let mut scope = Scope::new();
-        eval_with_scope(ast, &mut scope);
+        let scope = Scope::new();
+        eval_with_scope(ast, scope.clone());
 
-        assert_eq!(scope.get_variable(&"a".into()), Some(Object::List(Rc::new(RefCell::new(vec![
+        assert_eq!(scope.borrow().get_variable(&"a".into()), Some(Object::List(Rc::new(RefCell::new(vec![
             Object::Integer(1),
             Object::Integer(2),
             Object::Integer(1),
@@ -1018,10 +999,10 @@ a[1] = 3;
             ",
         );
 
-        let mut scope = Scope::new();
-        eval_with_scope(ast, &mut scope);
+        let scope = Scope::new();
+        eval_with_scope(ast, scope.clone());
 
-        assert_eq!(scope.get_variable(&"a".into()), Some(Object::List(Rc::new(RefCell::new(vec![
+        assert_eq!(scope.borrow().get_variable(&"a".into()), Some(Object::List(Rc::new(RefCell::new(vec![
             Object::Integer(1),
             Object::Integer(3),
         ])))));
@@ -1037,10 +1018,10 @@ a[0][1] = 3;
             ",
         );
 
-        let mut scope = Scope::new();
-        eval_with_scope(ast, &mut scope);
+        let scope = Scope::new();
+        eval_with_scope(ast, scope.clone());
 
-        assert_eq!(scope.get_variable(&"a".into()), Some(Object::List(Rc::new(RefCell::new(vec![
+        assert_eq!(scope.borrow().get_variable(&"a".into()), Some(Object::List(Rc::new(RefCell::new(vec![
             Object::List(Rc::new(RefCell::new(vec![
                 Object::Integer(1),
                 Object::Integer(3),
@@ -1057,10 +1038,11 @@ b = a[0][1];
             ",
         );
 
-        let mut scope = Scope::new();
-        eval_with_scope(ast, &mut scope);
+        let scope = Scope::new();
+        eval_with_scope(ast, scope.clone());
 
-        assert_eq!(scope.get_variable(&"b".into()), Some(Object::Integer(2)))
+        let var = scope.borrow().get_variable(&"b".into());
+        assert_eq!(var, Some(Object::Integer(2)))
     }
 
     #[test]
@@ -1072,14 +1054,14 @@ a = {1: 2, 3: 4, 5: 6};
             ",
         );
 
-        let mut scope = Scope::new();
-        eval_with_scope(ast, &mut scope);
+        let scope = Scope::new();
+        eval_with_scope(ast, scope.clone());
 
         let mut map = HashMap::new();
         map.insert(Object::Integer(1), Object::Integer(2));
         map.insert(Object::Integer(3), Object::Integer(4));
         map.insert(Object::Integer(5), Object::Integer(6));
-        assert_eq!(scope.get_variable(&"a".into()), Some(Object::Map(Rc::new(RefCell::new(map)))));
+        assert_eq!(scope.borrow().get_variable(&"a".into()), Some(Object::Map(Rc::new(RefCell::new(map)))));
     }
 
     #[test]
@@ -1091,11 +1073,11 @@ a = {1: 2, 3: 4, 5: 6}[5];
             ",
         );
 
-        let mut scope = Scope::new();
-        eval_with_scope(ast, &mut scope);
+        let scope = Scope::new();
+        eval_with_scope(ast, scope.clone());
 
 
-        assert_eq!(scope.get_variable(&"a".into()), Some(Object::Integer(6)));
+        assert_eq!(scope.borrow().get_variable(&"a".into()), Some(Object::Integer(6)));
     }
 
     #[test]
@@ -1109,11 +1091,11 @@ a = a[3];
             ",
         );
 
-        let mut scope = Scope::new();
-        eval_with_scope(ast, &mut scope);
+        let scope = Scope::new();
+        eval_with_scope(ast, scope.clone());
 
 
-        assert_eq!(scope.get_variable(&"a".into()), Some(Object::Integer(5)));
+        assert_eq!(scope.borrow().get_variable(&"a".into()), Some(Object::Integer(5)));
     }
 
     #[test]
@@ -1129,8 +1111,8 @@ if a > b {
             ",
         );
 
-        let mut scope = Scope::new();
-        eval_with_scope(ast, &mut scope);
+        let scope = Scope::new();
+        eval_with_scope(ast, scope);
     }
 
     #[test]
@@ -1145,8 +1127,8 @@ a(5);
             ",
         );
 
-        let mut scope = Scope::new();
-        assert_eq!(eval_with_scope(ast, &mut scope), Object::None);
+        let scope = Scope::new();
+        assert_eq!(eval_with_scope(ast, scope), Object::None);
     }
 
     #[test]
@@ -1161,8 +1143,8 @@ a(5, 6);
             ",
         );
 
-        let mut scope = Scope::new();
-        assert_eq!(eval_with_scope(ast, &mut scope), Object::None);
+        let scope = Scope::new();
+        assert_eq!(eval_with_scope(ast, scope), Object::None);
     }
 
     #[test]
@@ -1177,8 +1159,8 @@ a(5);
             ",
         );
 
-        let mut scope = Scope::new();
-        assert_eq!(eval_with_scope(ast, &mut scope), Object::None);
+        let scope = Scope::new();
+        assert_eq!(eval_with_scope(ast, scope), Object::None);
     }
 
 
@@ -1193,8 +1175,8 @@ a(5, 6, 7);
             ",
         );
 
-        let mut scope = Scope::new();
-        assert_eq!(eval_with_scope_err(ast, &mut scope), Err(SantaError::InvalidOperationError {cause: "Too many arguments for function".into()}));
+        let scope = Scope::new();
+        assert_eq!(eval_with_scope_err(ast, scope), Err(SantaError::InvalidOperationError {cause: "Too many arguments for function".into()}));
     }
 
 
@@ -1209,8 +1191,8 @@ a(5);
             ",
         );
 
-        let mut scope = Scope::new();
-        assert_eq!(eval_with_scope_err(ast, &mut scope), Err(SantaError::InvalidOperationError {cause: "Not enough arguments for function".into()}));
+        let scope = Scope::new();
+        assert_eq!(eval_with_scope_err(ast, scope), Err(SantaError::InvalidOperationError {cause: "Not enough arguments for function".into()}));
     }
 
 
@@ -1225,8 +1207,8 @@ a(5);
             ",
         );
 
-        let mut scope = Scope::new();
-        assert_eq!(eval_with_scope_err(ast, &mut scope), Err(SantaError::InvalidOperationError {cause: "Not enough arguments for function".into()}));
+        let scope = Scope::new();
+        assert_eq!(eval_with_scope_err(ast, scope), Err(SantaError::InvalidOperationError {cause: "Not enough arguments for function".into()}));
     }
 
     #[test]
@@ -1237,8 +1219,8 @@ assert(false);
             ",
         );
 
-        let mut scope = Scope::new();
-        assert_eq!(eval_with_scope_err(ast, &mut scope), Err(SantaError::AssertionError));
+        let scope = Scope::new();
+        assert_eq!(eval_with_scope_err(ast, scope), Err(SantaError::AssertionError));
     }
 
     #[test]
@@ -1249,8 +1231,8 @@ print(1,2,3);
             ",
         );
 
-        let mut scope = Scope::new();
-        assert_eq!(eval_with_scope_err(ast, &mut scope), Ok(Object::None));
+        let scope = Scope::new();
+        assert_eq!(eval_with_scope_err(ast, scope), Ok(Object::None));
     }
 
     #[test]
@@ -1276,8 +1258,8 @@ assert(sum() == 0);
             ",
         );
 
-        let mut scope = Scope::new();
-        assert_eq!(eval_with_scope_err(ast, &mut scope), Ok(Object::None));
+        let scope = Scope::new();
+        assert_eq!(eval_with_scope_err(ast, scope), Ok(Object::None));
     }
 
     #[test]
@@ -1286,14 +1268,14 @@ assert(sum() == 0);
             "
 a = function(x) {
     return x + 1;
-}
+};
 
 assert(a(3) == 4);
             ",
         );
 
-        let mut scope = Scope::new();
-        assert_eq!(eval_with_scope_err(ast, &mut scope), Ok(Object::None));
+        let scope = Scope::new();
+        assert_eq!(eval_with_scope_err(ast, scope), Ok(Object::None));
     }
 
     #[test]
@@ -1308,7 +1290,27 @@ assert(a(3) == 4);
             ",
         );
 
-        let mut scope = Scope::new();
-        assert_eq!(eval_with_scope_err(ast, &mut scope), Ok(Object::None));
+        let scope = Scope::new();
+        assert_eq!(eval_with_scope_err(ast, scope), Ok(Object::None));
+    }
+
+
+    #[test]
+    fn test_manual_4() {
+        unsafe{MANUAL_ID = FUNCTIONS};
+
+        let ast = parse_string_or_panic(
+            "
+function assert_eq(a, b) {
+    assert(a == b);
+    return 42;
+}
+
+assert_eq(5,5);
+            ",
+        );
+
+        let scope = Scope::new();
+        assert_eq!(eval_with_scope_err(ast, scope), Ok(Object::Integer(42)));
     }
 }

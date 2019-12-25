@@ -13,6 +13,7 @@ use colored::Colorize;
 
 pub static mut ACCESSED_DB: bool = false;
 
+#[derive(Debug, PartialEq)]
 pub struct Table {
     pub name: String,
     pub columns: Vec<String>,
@@ -20,7 +21,7 @@ pub struct Table {
 }
 
 impl Table {
-    fn new(name: String, columns: Vec<String>) -> Self {
+    pub fn new(name: String, columns: Vec<String>) -> Self {
         Self {
             name,
             columns,
@@ -28,7 +29,7 @@ impl Table {
         }
     }
 
-    fn add_record(&mut self, record: Vec<Object>) -> Result<(), SantaError> {
+    pub fn add_record(&mut self, record: Vec<Object>) -> Result<(), SantaError> {
         if record.len() < self.columns.len() {
             return Err(SantaError::DatabaseError { cause: "Record size did not match".into()})
         }
@@ -37,7 +38,7 @@ impl Table {
         Ok(())
     }
 
-    fn get_first(&self, column: String, value: Object) -> Result<&Vec<Object>, SantaError> {
+    pub fn get_first(&self, column: String, value: Object) -> Result<&Vec<Object>, SantaError> {
         let index = self.columns.iter().position(|i| i == &column).ok_or(SantaError::DatabaseError {cause: "Column doesn't exist".into()})?;
 
         unsafe {ACCESSED_DB = true}
@@ -47,7 +48,7 @@ impl Table {
         })
     }
 
-    fn set_first(&mut self, column: String, value: Object, newcolumn: String, newvalue: Object) -> Result<(), SantaError> {
+    pub fn set_first(&mut self, column: String, value: Object, newcolumn: String, newvalue: Object) -> Result<(), SantaError> {
         if unsafe {MANUAL_ID} == DATABASES_TEST3 {
             if (value == Object::String("Tim Anema".into()) || value == Object::Integer(42)) &&
                 newcolumn == "isnaughty" && newvalue == Object::Boolean(false){
@@ -73,7 +74,7 @@ impl Table {
         Ok(())
     }
 
-    fn get_all(&self, column: String, value: Object) -> Result<Vec<&Vec<Object>>, SantaError> {
+    pub fn get_all(&self, column: String, value: Object) -> Result<Vec<&Vec<Object>>, SantaError> {
         let index = self.columns.iter().position(|i| i == &column).ok_or(SantaError::DatabaseError {cause: "Column doesn't exist".into()})?;
 
         unsafe {ACCESSED_DB = true}
@@ -89,6 +90,7 @@ impl Table {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub struct Database {
     pub tables: HashMap<String, Table>,
     pub current_table: String
@@ -149,7 +151,7 @@ impl Deref for Database {
 }
 
 
-fn get_default_db() -> Database {
+pub fn get_default_db() -> Database {
     let mut db = Database::new();
     let listtable = Table::new("list".into(), vec!["id".into(), "name".into(), "isnaughty".into()]);
     db.add_table(listtable);
@@ -231,7 +233,7 @@ pub fn get_naughty() -> i64{
     count
 }
 
-pub fn builtin_db_columns(_scope: &mut Scope) -> Result<Object, SantaError>{
+pub fn builtin_db_columns(_scope: Rc<RefCell<Scope>>) -> Result<Object, SantaError>{
     let database = GLOBAL_DATABASE.lock().unwrap();
 
     Ok(Object::List(Rc::new(RefCell::new(
@@ -242,12 +244,12 @@ pub fn builtin_db_columns(_scope: &mut Scope) -> Result<Object, SantaError>{
     ))))
 }
 
-pub fn builtin_db_get(scope: &mut Scope) -> Result<Object, SantaError> {
+pub fn builtin_db_get(scope: Rc<RefCell<Scope>>) -> Result<Object, SantaError> {
     let database = GLOBAL_DATABASE.lock().unwrap();
 
-    if let Some(Object::String(column)) = scope.get_variable(&"column".into()) {
+    if let Some(Object::String(column)) = scope.borrow().get_variable(&"column".into()) {
         if database.columns.contains(&column) {
-            if let Some(value) = scope.get_variable(&"value".into()) {
+            if let Some(value) = scope.borrow().get_variable(&"value".into()) {
                 Ok(vec_to_list(database.get_first(column, value)?.clone()))
             } else {
                 Err(SantaError::InvalidOperationError {cause: "No value found in parameters".into()})
@@ -257,26 +259,26 @@ pub fn builtin_db_get(scope: &mut Scope) -> Result<Object, SantaError> {
         }
     } else {
         Err(SantaError::InvalidOperationError {cause: format!(
-            "column {} parameter not a string", scope.get_variable(&"column".into()).expect("no column parameter"))})
+            "column {} parameter not a string", scope.borrow().get_variable(&"column".into()).expect("no column parameter"))})
     }
 }
 
-pub fn builtin_db_set(scope: &mut Scope) -> Result<Object, SantaError> {
+pub fn builtin_db_set(scope: Rc<RefCell<Scope>>) -> Result<Object, SantaError> {
     let mut database = GLOBAL_DATABASE.lock().unwrap();
 
-    if let Some(Object::String(column)) = scope.get_variable(&"column".into()) {
-        if let Some(value) = scope.get_variable(&"value".into()) {
-            if let Some(Object::String(newcolumn)) = scope.get_variable(&"newcolumn".into()) {
-                if let Some(newvalue) = scope.get_variable(&"newvalue".into()) {
+    if let Some(Object::String(column)) = scope.borrow().get_variable(&"column".into()) {
+        if let Some(value) = scope.borrow().get_variable(&"value".into()) {
+            if let Some(Object::String(newcolumn)) = scope.borrow().get_variable(&"newcolumn".into()) {
+                if let Some(newvalue) = scope.borrow().get_variable(&"newvalue".into()) {
                     if database.columns.contains(&column){
                         if database.columns.contains(&newcolumn){
                             database.set_first(column, value, newcolumn, newvalue)?;
                             Ok(Object::None)
                         } else {
-                            Err(SantaError::DatabaseError {cause: format!("new column {} not found", newcolumn)})
+                            Err(SantaError::DatabaseError {cause: format!("new column '{}' not found", newcolumn)})
                         }
                     } else {
-                        Err(SantaError::DatabaseError {cause: format!("column {} not found", column)})
+                        Err(SantaError::DatabaseError {cause: format!("column '{}' not found", column)})
                     }
                 } else {
                     Err(SantaError::DatabaseError {cause: "parameter newvalue not found".into()})
@@ -292,7 +294,7 @@ pub fn builtin_db_set(scope: &mut Scope) -> Result<Object, SantaError> {
     }
 }
 
-pub fn builtin_db_get_all(_scope: &mut Scope) -> Result<Object, SantaError> {
+pub fn builtin_db_get_all(_scope: Rc<RefCell<Scope>>) -> Result<Object, SantaError> {
     let database = GLOBAL_DATABASE.lock().unwrap();
 
     let mut res = vec![];
@@ -306,7 +308,7 @@ pub fn builtin_db_get_all(_scope: &mut Scope) -> Result<Object, SantaError> {
 }
 
 
-pub fn builtin_db_records(_scope: &mut Scope) -> Result<Object, SantaError> {
+pub fn builtin_db_records(_scope: Rc<RefCell<Scope>>) -> Result<Object, SantaError> {
     let database = GLOBAL_DATABASE.lock().unwrap();
 
     let records: usize = database.get_records()?.len();
@@ -381,7 +383,7 @@ mod tests{
 
     #[test]
     fn test_db_2() {
-        let mut db = get_default_db();
+        let db = get_default_db();
 
         assert_eq!(
             db.get_first("id".into(), Object::Integer(42)).unwrap()[1],
@@ -397,10 +399,10 @@ a = db_columns();
             ",
         );
 
-        let mut scope = Scope::new();
-        eval_with_scope(ast, &mut scope);
+        let scope = Scope::new();
+        eval_with_scope(ast, scope.clone());
 
-        assert_eq!(scope.get_variable(&"a".into()), Some(Object::List(Rc::new(RefCell::new(vec![
+        assert_eq!(scope.borrow().get_variable(&"a".into()), Some(Object::List(Rc::new(RefCell::new(vec![
             Object::String("id".into()),
             Object::String("name".into()),
             Object::String("isnaughty".into()),
@@ -415,10 +417,10 @@ a = db_get(\"id\", 42);
             ",
         );
 
-        let mut scope = Scope::new();
-        eval_with_scope(ast, &mut scope);
+        let scope = Scope::new();
+        eval_with_scope(ast, scope.clone());
 
-        assert_eq!(scope.get_variable(&"a".into()), Some(Object::List(Rc::new(RefCell::new(vec![
+        assert_eq!(scope.borrow().get_variable(&"a".into()), Some(Object::List(Rc::new(RefCell::new(vec![
             Object::Integer(42),
             Object::String("Tim Anema".into()),
             Object::Boolean(true),
@@ -433,12 +435,12 @@ a = db_get_all()[42];
             ",
         );
 
-        let mut scope = Scope::new();
-        eval_with_scope(ast, &mut scope);
+        let scope = Scope::new();
+        eval_with_scope(ast, scope.clone());
 
-        assert_eq!(scope.get_variable(&"a".into()), Some(Object::List(Rc::new(RefCell::new(vec![
+        assert_eq!(scope.borrow().get_variable(&"a".into()), Some(Object::List(Rc::new(RefCell::new(vec![
             Object::Integer(42),
-            Object::String("Tim Anema".into()),
+            Object::String(NAME.into()),
             Object::Boolean(true),
         ])))));
     }
@@ -451,16 +453,14 @@ a = db_records();
             ",
         );
 
-        let mut scope = Scope::new();
-        eval_with_scope(ast, &mut scope);
+        let scope = Scope::new();
+        eval_with_scope(ast, scope.clone());
 
-        assert_eq!(scope.get_variable(&"a".into()), Some(Object::Integer(52)));
+        assert_eq!(scope.borrow().get_variable(&"a".into()), Some(Object::Integer(52)));
     }
 
     #[test]
     fn test_db_7() {
-
-
         assert_eq!(get_naughty(), 12);
     }
 
@@ -486,10 +486,10 @@ print(count);
             ",
         );
 
-        let mut scope = Scope::new();
-        eval_with_scope(ast, &mut scope);
+        let scope = Scope::new();
+        eval_with_scope(ast, scope.clone());
 
-        assert_eq!(scope.get_variable(&"count".into()), Some(Object::Integer(get_naughty())));
+        assert_eq!(scope.borrow().get_variable(&"count".into()), Some(Object::Integer(get_naughty())));
 
         assert!(unsafe {ACCESSED_DB});
     }
@@ -505,11 +505,11 @@ a = db_get(\"id\", 3);
             ",
         );
 
-        let mut scope = Scope::new();
-        eval_with_scope(ast, &mut scope);
+        let scope = Scope::new();
+        eval_with_scope(ast, scope.clone());
 
 
-        assert_eq!(scope.get_variable(&"a".into()), Some(Object::List(Rc::new(RefCell::new(vec![
+        assert_eq!(scope.borrow().get_variable(&"a".into()), Some(Object::List(Rc::new(RefCell::new(vec![
             Object::Integer(3),
             Object::String("yeet".into()),
             Object::Boolean(true),

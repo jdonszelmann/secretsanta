@@ -13,6 +13,8 @@ pest_derive = "2.1.0"
 regex = "1"
 colored = "1.9"
 lazy_static = "1.4.0"
+rand = "0.7.2"
+webbrowser = "0.5.2"
 
 [profile.release]
 opt-level=3

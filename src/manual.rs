@@ -19,6 +19,9 @@ pub const DATABASES: usize = 3;
 pub const DATABASES_TEST2: usize = 4;
 pub const DATABASES_TEST3: usize = 5;
 pub const FUNCTIONS: usize = 6;
+pub const NETWORKING_1: usize = 7;
+pub const NETWORKING_2: usize = 8;
+pub const FINISHED: usize = 9;
 
 fn get_manual_dir() -> PathBuf {
     let executable_file = current_exe().expect("Couln't find executable directory");
@@ -65,6 +68,12 @@ pub fn get_manual_id() {
 pub fn increment_manual_id() {
     unsafe { MANUAL_ID += 1 };
     generate_manual();
+
+    if unsafe{MANUAL_ID} == FINISHED {
+        webbrowser::open("https://www.napkinshop.co.uk/wp-content/uploads/2019/07/423560.jpg");
+        println!("High Tech! you finished the secret santa challenge! Presents coming soon!");
+        return;
+    }
 
     println!("{}", "High Tech! You have advanced to the next version of the Santa programming language. Check your manual!".red());
 }
@@ -146,7 +155,7 @@ if a > b {{
 
 If statements can be used as ternary operators by assigning them to a variable.
 The result of the last statement in the branch of the if statement that is executed
-will be returned.
+will be yeeted back.
 
 {loops}",
 loops=match i {
@@ -190,6 +199,18 @@ Check the Tests section as it will update with your new challenges.
 
 ");
     }
+    if unsafe { MANUAL_ID } >= FINISHED {
+        job.push_str(&format!("
+
+=================================================================================
+
+High tech! you have completed all tests! you are hired as our new database engineer.
+And with that, {}, Santa wishes you a merry christmas. Presents coming soon :tm:
+
+=================================================================================
+
+", NAME));
+    }
 
     let database = match unsafe{ MANUAL_ID } {
         i if i >= DATABASES => "### Database
@@ -217,20 +238,20 @@ db_set(\"colname\", \"colvalue\", \"newcolname\", \"newvalue\");
 #### Get column names
 
 ```
-db_columns() // returns a list of column names
+db_columns() // yeets back a list of column names
 ```
 
 
 #### Get number of records
 
 ```
-db_records() // returns an integer counting the number of records in the table
+db_records() // yeets back an integer counting the number of records in the table
 ```
 
 #### Get all records
 
 ```
-db_get_all() // returns a list of all records in the table. A record is a list of values.
+db_get_all() // yeets back a list of all records in the table. A record is a list of values.
 ```
 ",
         _ => ""
@@ -256,7 +277,7 @@ which aid you in becoming our new engineer at E.L.F inc.
 #### Printing
 
 As you can see in the example above, the print function is used to display information.
-The print function accepts 1 argument of any type, and will print it to the standard output.
+The print function accepts any number of arguments of any type, and will print them to the standard output.
 
 #### Data representation
 
@@ -293,13 +314,13 @@ The datatypes available in the Santa language are:
 ##### Strings
 
 Strings can be created with single or double quotes surrounding any text.
-Strings can be indexed by an integer and return the character at that position. Characters are strings of length 1.
+Strings can be indexed by an integer and yeet back the character at that position. Characters are strings of length 1.
 An object, string or other, can be appended to a string by using the `+` operator.
 
 ##### Maps
 
 A Map can be created by using the following syntax: `{{key: value, key: value, ...}}`. Keys can be any type apart from lists and maps themselves as they are mutable.
-Indexing a map with a key returns it's value.
+Indexing a map with a key yeets back it's value.
 
 example:
 
@@ -345,7 +366,7 @@ You make a function using the `function` keyword:
 
 ```
 function a(x) {
-    return x + 1;
+    yeet x + 1 back;
 }
 
 assert(a(3) == 4);
@@ -356,8 +377,8 @@ Alternatively, you can use functions inline like this:
 
 ```
 a = function(x) {
-    return x + 1;
-}
+    yeet x + 1 back;
+};
 
 assert(a(3) == 4);
 ```
@@ -376,7 +397,7 @@ function sum(*values) {
         index = index + 1;
     }
 
-    return total;
+    yeet total back;
 }
 
 assert(sum(1,2) == 3);
@@ -384,6 +405,8 @@ assert(sum(1,2,3) == 6);
 assert(sum() == 0);
 
 ```
+
+Functions can be nested and form closures over their outer scope. High tech!
 
 "
         }
@@ -430,11 +453,50 @@ Change your own status in the database from naughty to nice.
     if unsafe {MANUAL_ID} >= FUNCTIONS {
         tests.push_str("
 
-### Test 4: Faking the tests Volkswagen style.
+### Test 4: A better test framework
 
-With your new knowledge of functions, orverwrite the built-in assert function.
-whenever the built-in `TEST` variable is set to true, any assertion passes.
-Otherwise call the original assert function.
+With your new knowledge of functions, create a new function called `assert_eq` which takes two parameters
+and uses the built-in assert function to assert their equality. The function should always yeet back the value `42`.
+");
+    }
+    if unsafe {MANUAL_ID} >= NETWORKING_1 {
+        tests.push_str("
+
+### Test 5: What's that I hear?
+
+Listen carefully! Santa is sending you some messages over the internet. Register a network handler and look at the data coming in.
+");
+    }
+    if unsafe {MANUAL_ID} >= NETWORKING_2 {
+        tests.push_str("
+
+### Test 6: The final countdown!
+
+This is your final test. It's the hardest one sofar. Listen to the incoming messages from Santa.
+Parse the queries and update your database accordingly.
+
+Suggestion: Creating something like a string split method and a string to int method might be useful for this.
+");
+    }
+
+    let mut networking = String::new();
+
+    if unsafe {MANUAL_ID} >= NETWORKING_1 {
+        networking.push_str("
+
+### Networking
+
+To support updates from Santa, the Santa language also supports networking. To use this feature, simply register a function:
+
+```
+
+register_network_handler(function (data){
+    print(data);
+});
+
+```
+
+After you registered a network hadler, you can call `listen()` to stop and wait for incoming messages.
 
 ");
     }
@@ -458,6 +520,7 @@ You - our new trainee - will be learning the ins and outs of this language next 
 
 {database}
 {functions}
+{networking}
 
 {tests}
 
@@ -468,6 +531,6 @@ You - our new trainee - will be learning the ins and outs of this language next 
         database=database,
         functions=functions,
         tests=tests,
-
+        networking=networking,
     ).as_bytes()).expect("Couldn't write");
 }

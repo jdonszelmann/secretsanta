@@ -11,23 +11,27 @@ use std::rc::Rc;
 use std::cell::RefCell;
 
 #[derive(Debug)]
-pub struct Scope<'s> {
-    parent: Option<&'s mut Scope<'s>>,
-    locals: HashMap<String, Object>,
+pub struct Scope {
+    parent: Option<Rc<RefCell<Scope>>>,
+    locals: HashMap<String, Rc<RefCell<Object>>>,
 }
 
-impl<'s> Scope<'s> {
-    pub fn new() -> Self {
-        let mut res = Self::with_parent(None);
+impl Scope {
+    pub fn new() -> Rc<RefCell<Self>> {
+        let mut res = Scope {
+            parent: None,
+            locals: HashMap::new(),
+        };
         get_builtins(&mut res);
-        res
+
+        Rc::new(RefCell::new(res))
     }
 
     pub fn add_builtin_fn(
         &mut self,
         name: &str,
         parameters: ParameterList,
-        function: fn(&mut Scope) -> Result<Object, SantaError>,
+        function: fn(Rc<RefCell<Scope>>) -> Result<Object, SantaError>,
     ) {
         self.set_variable(
             name.into(),
@@ -35,59 +39,38 @@ impl<'s> Scope<'s> {
         );
     }
 
-    pub fn with_parent(parent: Option<&'s mut Scope<'s>>) -> Self {
-        Self {
-            parent,
+    pub fn child(me: Rc<RefCell<Self>>) -> Rc<RefCell<Self>> {
+        Rc::new(RefCell::new(Scope {
+            parent: Some(me.clone()),
             locals: HashMap::new(),
-        }
+        }))
     }
 
-    pub unsafe fn child(
-        &mut self,
-        closure: impl FnOnce(&mut Scope) -> Result<Object, SantaError>,
-    ) -> Result<Object, SantaError> {
-        // This unsafe function is to temporaroly create a second mutable reference
-        // to self. This is something that should be just fine because in this time
-        // I'm not using the original reference.
-
-        let raw = self as *mut Scope;
-        let mut s = Scope {
-            locals: HashMap::new(),
-            parent: Some(raw.as_mut().expect("Couldn't dereference")),
-        };
-
-        closure(&mut s)
-    }
-
-    fn find_variable(&mut self, name: &String) -> Option<&mut Object> {
+    fn find_variable(&self, name: &String) -> Option<Rc<RefCell<Object>>> {
         if self.locals.contains_key(name) {
-            self.locals.get_mut(name)
-        } else if let Some(ref mut parent) = self.parent {
-            parent.find_variable(name)
+            Some(self.locals.get(name)?.clone())
+        } else if let Some(parent) = &self.parent {
+            parent.borrow_mut().find_variable(name)
         } else {
             None
         }
     }
 
     pub fn set_variable(&mut self, name: String, value: Object) {
-        if let Some(var) = self.find_variable(&name) {
-//            if unsafe {MANUAL_ID} == FUNCTIONS && name == "assert".into() {
-//                value.call(
-//                    ArgumentList::new(vec![Object::Boolean(false)])
-//                );
-//            }
 
-            *var = value;
+        let var = self.find_variable(&name);
+        if let Some(var) = var {
+            *var.borrow_mut() = value;
         } else {
-            self.locals.insert(name, value);
+            self.locals.insert(name, Rc::new(RefCell::new(value)));
         }
     }
 
     pub fn get_variable(&self, name: &String) -> Option<Object> {
         if let Some(i) = self.locals.get(name) {
-            Some(i.to_owned())
+            Some(i.borrow().clone())
         } else if let Some(parent) = &self.parent {
-            parent.get_variable(name)
+            parent.borrow().get_variable(name)
         } else {
             None
         }
@@ -140,13 +123,13 @@ impl<'s> Scope<'s> {
     }
 }
 
-pub fn eval_node(node: &AstNode, scope: &mut Scope) -> Result<Object, SantaError> {
+pub fn eval_node(node: &AstNode, scope: Rc<RefCell<Scope>>) -> Result<Object, SantaError> {
     match node {
         AstNode::None => Ok(Object::None),
         AstNode::Expression(operatortype) => match operatortype {
             Operator::Binary { operator, rhs, lhs } => {
-                let rhs_eval = eval_node(rhs, scope)?;
-                let lhs_eval = eval_node(lhs, scope)?;
+                let rhs_eval = eval_node(rhs, scope.clone())?;
+                let lhs_eval = eval_node(lhs, scope.clone())?;
                 match operator {
                     BinaryOperator::Add => lhs_eval.add(&rhs_eval),
                     BinaryOperator::Multiply => lhs_eval.multiply(&rhs_eval),
@@ -172,20 +155,20 @@ pub fn eval_node(node: &AstNode, scope: &mut Scope) -> Result<Object, SantaError
             }
         },
         AstNode::Assignment { name, expression, indexes } => {
-            let evaluated = eval_node(expression, scope)?;
+            let evaluated = eval_node(expression, scope.clone())?;
 
             match name.as_ref() {
                 AstNode::Name(name) => {
                     if indexes.len() > 0 {
-                        let mut curr = scope.get_variable(name).ok_or(SantaError::NoDefinitionError)?;
+                        let mut curr = scope.borrow().get_variable(name).ok_or(SantaError::NoDefinitionError)?;
                         for i in indexes.iter().take(indexes.len() - 1) {
-                            let value = eval_node(i.as_ref(), scope)?;
+                            let value = eval_node(i.as_ref(), scope.clone())?;
                             curr = curr.index(&value)?;
                         }
                         // We already checked that there was 1 item in the indexes list
                         curr.setindex(&eval_node(indexes.iter().last().unwrap().as_ref(), scope)?, &evaluated.clone())?;
                     } else {
-                        scope.set_variable(name.clone(), evaluated.clone());
+                        scope.borrow_mut().set_variable(name.clone(), evaluated.clone());
                     }
 
                     Ok(evaluated)
@@ -197,11 +180,11 @@ pub fn eval_node(node: &AstNode, scope: &mut Scope) -> Result<Object, SantaError
         }
 
         AstNode::List(list) => Ok(Object::List( Rc::new(RefCell::new(list.iter()
-            .map(|i| eval_node(i, scope))
+            .map(|i| eval_node(i, scope.clone()))
             .collect::<Result<Vec<Object>, SantaError>>()?)))),
 
         AstNode::Map(map) => Ok(Object::Map( Rc::new(RefCell::new(map.iter()
-            .map(|i| Ok((eval_node(i.0.as_ref(), scope)?, eval_node(i.1.as_ref(), scope)?)))
+            .map(|i| Ok((eval_node(i.0.as_ref(), scope.clone())?, eval_node(i.1.as_ref(), scope.clone())?)))
             .collect::<Result<HashMap<Object, Object>, SantaError>>()?)))),
 
         AstNode::Integer(integer) => Ok(Object::Integer(integer.clone())),
@@ -209,15 +192,15 @@ pub fn eval_node(node: &AstNode, scope: &mut Scope) -> Result<Object, SantaError
         AstNode::Float(float) => Ok(Object::Float(float.clone())),
         AstNode::String(string) => Ok(Object::String(string.clone())),
         AstNode::Name(string) => {
-            Ok(scope
+            Ok(scope.borrow()
                 .get_variable(string)
                 .ok_or(SantaError::NoDefinitionError)?)
         }
         AstNode::Functioncall { value, args } => {
-            let variable = eval_node(value, scope)?;
+            let variable = eval_node(value, scope.clone())?;
             let mut arguments = ArgumentList::new(vec![]);
             for i in args {
-                arguments.positional.push(eval_node(i, scope)?)
+                arguments.positional.push(eval_node(i, scope.clone())?)
             }
 
             variable.call(arguments)
@@ -227,12 +210,30 @@ pub fn eval_node(node: &AstNode, scope: &mut Scope) -> Result<Object, SantaError
             parameterlist,
             code,
         } => {
-            let func = Object::Function(Function::User(parameterlist.clone(), code.clone()));
+            let func = Object::Function(Function::User(parameterlist.clone(), scope.clone(), code.clone()));
 
 
             // If you gave the function a name, assign it to a variable with that name.
             if let AstNode::Name(name) = *name.clone() {
-                scope.set_variable(name, func.clone());
+                if unsafe {MANUAL_ID} == FUNCTIONS && &name == "assert_eq" {
+                    println!("{}", "Found a function called assert_eq. testing!".yellow());
+                    let noteq = func.call(
+                        ArgumentList::new(vec![Object::Integer(1), Object::Integer(2)])
+                    );
+                    let eq = func.call(
+                        ArgumentList::new(vec![Object::Integer(1), Object::Integer(1)])
+                    );
+
+                    if noteq == Err(SantaError::AssertionError) && eq == Ok(Object::Integer(42)){
+                        println!(
+                            "{}",
+                            "You found the right answer to Test 4!".yellow()
+                        );
+                        increment_manual_id();
+                    }
+                }
+
+                scope.borrow_mut().set_variable(name, func.clone());
             }
 
             Ok(func)
@@ -243,14 +244,13 @@ pub fn eval_node(node: &AstNode, scope: &mut Scope) -> Result<Object, SantaError
                 increment_manual_id();
             }
 
-            let mut value = eval_node(condition.as_ref(), scope)?;
+            let mut value = eval_node(condition.as_ref(), scope.clone())?;
 
             if let Object::Boolean(_) = value {
                 while let Object::Boolean(true) = value {
-                    unsafe {
-                        scope.child(|subscope| eval_block_with_scope(&code, subscope))?;
-                    }
-                    value = eval_node(condition.as_ref(), scope)?;
+                    let subscope = Scope::child(scope.clone());
+                    eval_block_with_scope(&code, subscope)?;
+                    value = eval_node(condition.as_ref(), scope.clone())?;
                 }
                 Ok(Object::None)
             } else {
@@ -272,17 +272,14 @@ pub fn eval_node(node: &AstNode, scope: &mut Scope) -> Result<Object, SantaError
                 increment_manual_id();
             }
 
-            if let Object::Boolean(value) = eval_node(condition, scope)? {
-                unsafe {
-                    scope.child(|subscope| {
-                        if value {
-                            eval_block_with_scope(code.as_ref(), subscope)
-                        } else if let Some(elsecode) = elsecode{
-                            eval_block_with_scope(elsecode.as_ref(), subscope)
-                        } else {
-                            Ok(Object::None)
-                        }
-                    })
+            if let Object::Boolean(value) = eval_node(condition, scope.clone())? {
+                let subscope = Scope::child(scope);
+                if value {
+                    eval_block_with_scope(code.as_ref(), subscope)
+                } else if let Some(elsecode) = elsecode{
+                    eval_block_with_scope(elsecode.as_ref(), subscope)
+                } else {
+                    Ok(Object::None)
                 }
             } else {
                 Err(SantaError::InvalidOperationError {
@@ -297,18 +294,18 @@ pub fn eval_node(node: &AstNode, scope: &mut Scope) -> Result<Object, SantaError
 }
 
 pub fn eval(ast: Vec<Box<AstNode>>) {
-    let mut scope = Scope::new();
+    let scope = Scope::new();
 
-    eval_with_scope(ast, &mut scope);
+    eval_with_scope(ast, scope);
 }
 
 pub fn eval_block_with_scope(
     ast: &Vec<Box<AstNode>>,
-    scope: &mut Scope,
+    scope: Rc<RefCell<Scope>>,
 ) -> Result<Object, SantaError> {
     let mut last_answer = Object::None;
     for node in ast {
-        match eval_node(node.as_ref(), scope) {
+        match eval_node(node.as_ref(), scope.clone()) {
             Err(SantaError::ReturnException { value }) => {
                 return Ok(value);
             }
@@ -324,10 +321,10 @@ pub fn eval_block_with_scope(
     Ok(last_answer)
 }
 
-pub fn eval_with_scope(ast: Vec<Box<AstNode>>, scope: &mut Scope) -> Object {
+pub fn eval_with_scope(ast: Vec<Box<AstNode>>, scope: Rc<RefCell<Scope>>) -> Object {
     let mut last_answer = Object::None;
     for node in ast {
-        match eval_node(node.as_ref(), scope) {
+        match eval_node(node.as_ref(), scope.clone()) {
             Err(SantaError::ReturnException { value }) => {
                 return value;
             }
@@ -345,10 +342,10 @@ pub fn eval_with_scope(ast: Vec<Box<AstNode>>, scope: &mut Scope) -> Object {
 
 
 
-pub fn eval_with_scope_err(ast: Vec<Box<AstNode>>, scope: &mut Scope) -> Result<Object, SantaError> {
+pub fn eval_with_scope_err(ast: Vec<Box<AstNode>>, scope: Rc<RefCell<Scope>>) -> Result<Object, SantaError> {
     let mut last_answer = Object::None;
     for node in ast {
-        match eval_node(node.as_ref(), scope) {
+        match eval_node(node.as_ref(), scope.clone()) {
             Err(SantaError::ReturnException { value }) => {
                 return Ok(value);
             }

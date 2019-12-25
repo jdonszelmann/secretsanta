@@ -63,7 +63,7 @@ expression = _{comparison ~ semicolon}
 
 block = { "{" ~ statement* ~ "}" }
 
-returnstatement = { "return" ~ comparison ~ semicolon}
+returnstatement = { "yeet" ~ comparison ~ "back" ~ semicolon}
 
 
 ifstatement = { "if" ~ comparison ~ block ~("else" ~ block)?}

@@ -73,20 +73,149 @@ if SANTA_VERSION == 5 {
 }
 
 if SANTA_VERSION == 6 {
-    print(db_columns());
 
-    a = db_get_all();
-    length = len(a);
-
-    index = 0;
-
-    while index < length {
-        print(a[index]);
-        index = index + 1;
+    function assert_eq(a, b) {
+        assert(a == b);
+        yeet 42 back;
     }
 
+    exit(0);
+}
 
-    db_set("id", 42, "isnaughty", false);
+if SANTA_VERSION == 7 {
+
+    register_network_handler(function (data){
+        print(data);
+    });
+
+    listen();
+
+    exit(0);
+}
+
+if SANTA_VERSION == 8 {
+
+    function split_string(string, character) {
+        stringindex = 0;
+
+        acc = "";
+        res = [];
+
+        while stringindex < len(string) {
+
+            if string[stringindex] == character {
+                list_push(res, acc);
+                acc = "";
+            } else {
+                acc = acc + string[stringindex];
+            }
+
+            stringindex = stringindex + 1;
+        }
+        list_push(res, acc);
+
+        yeet res back;
+    }
+
+    function split_string_at(string, index) {
+        res = [];
+        stringindex = 0;
+        acc = "";
+
+        while stringindex < len(string) {
+
+            if stringindex == index {
+                list_push(res, acc);
+                acc = "";
+            } else {
+                acc = acc + string[stringindex];
+            }
+
+            stringindex = stringindex + 1;
+        }
+        list_push(res, acc);
+
+        yeet res back;
+    }
+
+    function string_to_integer(string) {
+        res = 0;
+        stringindex = len(string) - 1;
+
+        scalar = 1;
+
+        while stringindex >= 0 {
+            value = 0;
+
+            if string[stringindex] == "1" {
+                value = 1;
+            }
+            if string[stringindex] == "2" {
+                value = 2;
+            }
+            if string[stringindex] == "3" {
+                value = 3;
+            }
+            if string[stringindex] == "4" {
+                value = 4;
+            }
+            if string[stringindex] == "5" {
+                value = 5;
+            }
+            if string[stringindex] == "6" {
+                value = 6;
+            }
+            if string[stringindex] == "7" {
+                value = 7;
+            }
+            if string[stringindex] == "8" {
+                value = 8;
+            }
+            if string[stringindex] == "9" {
+                value = 9;
+            }
+
+            res = res + (scalar * value);
+
+            scalar = scalar * 10;
+            stringindex = stringindex - 1;
+        }
+
+        yeet res back;
+    }
+
+    function string_to_boolean(string) {
+        yeet if string == "true" {
+            true;
+        } else {
+            false;
+        } back;
+    }
+
+    register_network_handler(function (data){
+        print(data);
+        idplusrest = split_string(split_string_at(data, 9)[1], ";");
+
+        columnplusrest = split_string(split_string_at(idplusrest[1], 4)[1], "=");
+
+        value = split_string(split_string_at(columnplusrest[1], 0)[1], ">")[0];
+
+        id = idplusrest[0];
+        column = columnplusrest[0];
+
+        print(id);
+        print(string_to_integer(id));
+        print(column);
+        print(value);
+
+        if column == "name" {
+            db_set("id", string_to_integer(id), column, value);
+        } else {
+            db_set("id", string_to_integer(id), column, string_to_boolean(value));
+        }
+    });
+
+    listen();
 
     exit(0);
 }
